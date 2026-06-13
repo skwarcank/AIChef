@@ -1,0 +1,147 @@
+import { render as uploadRender, mount as uploadMount } from './screens/upload.js';
+import { render as detectingRender, mount as detectingMount } from './screens/detecting.js';
+import { render as confirmRender, mount as confirmMount } from './screens/confirm.js';
+import { render as generatingRender, mount as generatingMount } from './screens/generating.js';
+import { render as recipeRender, mount as recipeMount } from './screens/recipe.js';
+import { render as errorRender, mount as errorMount } from './screens/error.js';
+
+const PANTRY_STAPLES = ['Salt', 'Pepper', 'Olive Oil', 'Water'];
+const MAX_RECIPES = 10;
+
+const state = {
+  photo: null,
+  detected: [],
+  removedDetected: [],
+  pantry: PANTRY_STAPLES.map(s => ({ name: s, checked: true })),
+  recipeCount: 0,
+  currentRecipe: null,
+  lastConfirmed: null,
+  lastPantry: null,
+  errorMessage: null,
+};
+
+const screens = {
+  upload: { render: uploadRender, mount: uploadMount },
+  detecting: { render: detectingRender, mount: detectingMount },
+  confirm: { render: confirmRender, mount: confirmMount },
+  generating: { render: generatingRender, mount: generatingMount },
+  recipe: { render: recipeRender, mount: recipeMount },
+  error: { render: errorRender, mount: errorMount },
+};
+
+function navigate(screenName) {
+  const screen = screens[screenName];
+  const app = document.getElementById('app');
+  app.innerHTML = screen.render(state);
+  screen.mount(app, actions);
+}
+
+const actions = {
+  onPhoto(base64) {
+    state.photo = base64;
+    navigate('detecting');
+    detectIngredients(base64);
+  },
+
+  retakePhoto() {
+    state.photo = null;
+    state.detected = [];
+    state.removedDetected = [];
+    navigate('upload');
+  },
+
+  toggleDetected(index) {
+    const idx = state.removedDetected.indexOf(index);
+    if (idx > -1) {
+      state.removedDetected.splice(idx, 1);
+    } else {
+      state.removedDetected.push(index);
+    }
+    navigate('confirm');
+  },
+
+  togglePantry(index) {
+    state.pantry[index].checked = !state.pantry[index].checked;
+    navigate('confirm');
+  },
+
+  addCustomIngredient(name) {
+    state.detected.push(name);
+    navigate('confirm');
+  },
+
+  generateRecipe() {
+    state.confirmed = state.detected.filter((_, i) => !state.removedDetected.includes(i));
+    state.lastConfirmed = [...state.confirmed];
+    state.lastPantry = state.pantry.filter(p => p.checked).map(p => p.name);
+    state.recipeCount++;
+    navigate('generating');
+    getRecipe(state.lastConfirmed, state.lastPantry);
+  },
+
+  tryAnotherPhoto() {
+    state.photo = null;
+    state.detected = [];
+    state.removedDetected = [];
+    state.confirmed = [];
+    state.currentRecipe = null;
+    state.recipeCount = 0;
+    state.errorMessage = null;
+    navigate('upload');
+  },
+
+  tryAnotherRecipe() {
+    if (state.recipeCount >= MAX_RECIPES) return;
+    state.recipeCount++;
+    navigate('generating');
+    getRecipe(state.lastConfirmed, state.lastPantry);
+  },
+
+  backToConfirm() {
+    navigate('confirm');
+  },
+};
+
+async function detectIngredients(base64) {
+  try {
+    const res = await fetch('/api/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64.split(',')[1] || base64 }),
+    });
+    const data = await res.json();
+    state.detected = data.ingredients || [];
+  } catch (err) {
+    console.error(err);
+    state.detected = [];
+  }
+  navigate('confirm');
+}
+
+async function getRecipe(ingredients, pantryStaples) {
+  try {
+    const res = await fetch('/api/recipe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ingredients, pantryStaples }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      state.errorMessage = data.message;
+      navigate('error');
+    } else {
+      state.currentRecipe = {
+        title: data.title,
+        ingredients: data.ingredients,
+        instructions: data.instructions,
+      };
+      navigate('recipe');
+    }
+  } catch (err) {
+    console.error(err);
+    state.errorMessage = 'Something went wrong. Try again.';
+    navigate('error');
+  }
+}
+
+navigate('upload');
