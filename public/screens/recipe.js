@@ -8,9 +8,20 @@ export function render(state) {
   const instructions = r.instructions.map(s => `<li>${escapeHtml(s)}</li>`).join('');
   const atLimit = state.recipeCount >= MAX_RECIPES;
 
+  const imageHtml = state.imageUrl
+    ? `<div class="recipe-image-wrapper"><img class="recipe-image" src="${escapeHtml(state.imageUrl)}" alt="${escapeHtml(r.title)}" loading="lazy"></div>`
+    : `<div class="recipe-image-wrapper"><div class="recipe-image-skeleton"></div></div>`;
+
+  const attrHtml = state.imagePhotographer
+    ? `<p class="recipe-attribution">Photo by <a href="${escapeHtml(state.imagePhotographerUrl)}" target="_blank" rel="noopener">${escapeHtml(state.imagePhotographer)}</a></p>`
+    : '';
+
   return `
     <div class="screen recipe-screen">
       <button class="action-btn-top" id="try-another-photo">📸 Try Another Photo</button>
+
+      ${imageHtml}
+      ${attrHtml}
 
       <h1 class="recipe-title">${escapeHtml(r.title)}</h1>
 

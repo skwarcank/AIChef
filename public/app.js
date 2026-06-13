@@ -15,6 +15,9 @@ const state = {
   pantry: PANTRY_STAPLES.map(s => ({ name: s, checked: true })),
   recipeCount: 0,
   currentRecipe: null,
+  imageUrl: null,
+  imagePhotographer: null,
+  imagePhotographerUrl: null,
   lastConfirmed: null,
   lastPantry: null,
   errorMessage: null,
@@ -85,6 +88,9 @@ const actions = {
     state.removedDetected = [];
     state.confirmed = [];
     state.currentRecipe = null;
+    state.imageUrl = null;
+    state.imagePhotographer = null;
+    state.imagePhotographerUrl = null;
     state.recipeCount = 0;
     state.errorMessage = null;
     navigate('upload');
@@ -110,10 +116,15 @@ async function detectIngredients(base64) {
       body: JSON.stringify({ image: base64.split(',')[1] || base64 }),
     });
     const data = await res.json();
+    if (!res.ok || data.error) {
+      state.errorMessage = data.message || 'Failed to detect ingredients. Try a clearer photo.';
+      return navigate('error');
+    }
     state.detected = data.ingredients || [];
   } catch (err) {
     console.error(err);
-    state.detected = [];
+    state.errorMessage = 'Network error. Check your connection and try again.';
+    return navigate('error');
   }
   navigate('confirm');
 }
@@ -134,13 +145,39 @@ async function getRecipe(ingredients, pantryStaples) {
         title: data.title,
         ingredients: data.ingredients,
         instructions: data.instructions,
+        searchQuery: data.searchQuery,
       };
+      state.imageUrl = null;
+      state.imagePhotographer = null;
+      state.imagePhotographerUrl = null;
       navigate('recipe');
+      if (data.searchQuery) {
+        fetchImage(data.searchQuery);
+      }
     }
   } catch (err) {
     console.error(err);
     state.errorMessage = 'Something went wrong. Try again.';
     navigate('error');
+  }
+}
+
+async function fetchImage(query) {
+  try {
+    const res = await fetch('/api/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    const data = await res.json();
+    if (data.url) {
+      state.imageUrl = data.url;
+      state.imagePhotographer = data.photographer;
+      state.imagePhotographerUrl = data.photographerUrl;
+      navigate('recipe');
+    }
+  } catch (err) {
+    console.error(err);
   }
 }
 

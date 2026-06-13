@@ -314,6 +314,40 @@ input {
   gap: 16px;
 }
 
+.recipe-image-wrapper {
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--surface);
+}
+
+.recipe-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.recipe-image-skeleton {
+  width: 100%;
+  height: 100%;
+  background: var(--surface2);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.recipe-attribution {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: -8px;
+}
+
+.recipe-attribution a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
 .recipe-title {
   font-size: 1.5rem;
   font-weight: 700;
