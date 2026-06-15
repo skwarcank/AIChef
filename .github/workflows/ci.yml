@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  verify:
+    name: Verify app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check server syntax
+        run: node --check server.js
+
+      - name: Verify package entrypoint loads
+        run: |
+          node --input-type=module <<'EOF'
+          process.env.OPENROUTER_API_KEY = 'ci-placeholder';
+          process.env.PEXELS_API_KEY = 'ci-placeholder';
+          process.env.PORT = '0';
+          await import('./server.js');
+          setTimeout(() => process.exit(0), 500);
+          EOF
