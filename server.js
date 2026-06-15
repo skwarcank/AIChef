@@ -30,6 +30,32 @@ function extractJSON(text) {
   return text.trim();
 }
 
+function normalizeIngredientName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function ingredientLooksAvailable(recipeIngredient, availableIngredients) {
+  const normalized = normalizeIngredientName(recipeIngredient);
+  return availableIngredients.some(item => {
+    const available = normalizeIngredientName(item);
+    return available && (normalized.includes(available) || available.includes(normalized));
+  });
+}
+
+function mergeUniqueIngredients(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = normalizeIngredientName(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 app.post('/api/image', async (req, res) => {
   try {
     const { query } = req.body;
@@ -101,17 +127,28 @@ app.post('/api/detect', async (req, res) => {
 app.post('/api/recipe', async (req, res) => {
   try {
     const { ingredients, pantryStaples } = req.body;
+    const preferences = req.body.preferences || {};
+    const preferenceLines = [
+      preferences.dishType && `Dish type: ${preferences.dishType}`,
+      preferences.cuisine && `Cuisine: ${preferences.cuisine}`,
+      preferences.dietaryPreference && `Dietary preference: ${preferences.dietaryPreference}`,
+      preferences.timeLimit && `Time available: ${preferences.timeLimit}`,
+      preferences.servings && `Servings: ${preferences.servings}`,
+      preferences.skillLevel && `Skill level: ${preferences.skillLevel}`,
+      preferences.mustUseIngredients?.length && `Must-use ingredients: ${preferences.mustUseIngredients.join(', ')}`,
+      preferences.avoidIngredients && `Avoid: ${preferences.avoidIngredients}`,
+    ].filter(Boolean).join('\n');
 
     const response = await openai.chat.completions.create({
       model: MODEL,
       messages: [
         {
           role: 'system',
-          content: 'You are a creative chef. Create a recipe using ONLY the given main ingredients and pantry staples. Do not use any other ingredients. Return valid JSON: {"title": "Recipe Name", "ingredients": ["qty item", ...], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Include a searchQuery field that describes the finished dish in 3-6 words for searching stock photos. If the ingredients are truly insufficient for any recipe, return: {"error": true, "message": "Friendly suggestion of what additional ingredients would help"}'
+          content: 'You are a creative chef. Create a practical recipe using the given main ingredients and pantry staples as ingredients the user already has. Follow the user preferences as closely as possible. You may add extra ingredients when needed to make a good recipe or satisfy preferences. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "ingredients": ["qty item", ...], "shoppingList": ["qty item", ...], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. The ingredients array must contain the full recipe ingredient list, including ingredients the user must buy. The shoppingList array must duplicate every ingredient from ingredients that is not already in the provided main ingredients or pantry staples. Use [] for shoppingList only when every recipe ingredient is already available. Include a searchQuery field that describes the finished dish in 3-6 words for searching stock photos. Only return an error if no safe food recipe can be made at all.'
         },
         {
           role: 'user',
-          content: `Main ingredients: ${ingredients.join(', ')}. Pantry staples: ${pantryStaples.join(', ')}.`
+          content: `Main ingredients: ${ingredients.join(', ')}. Pantry staples: ${pantryStaples.join(', ')}.${preferenceLines ? `\nPreferences:\n${preferenceLines}` : ''}`
         }
       ],
       max_tokens: 1000,
@@ -125,6 +162,15 @@ app.post('/api/recipe', async (req, res) => {
       recipe = JSON.parse(extractJSON(text));
     } catch {
       recipe = { error: true, message: 'Could not generate a recipe. Try different ingredients.' };
+    }
+
+    if (!recipe.error) {
+      const returnedShoppingList = recipe.shoppingList || recipe.missingIngredients || recipe.neededIngredients || recipe.toBuy || [];
+      const availableIngredients = [...(ingredients || []), ...(pantryStaples || [])];
+      const derivedShoppingList = Array.isArray(recipe.ingredients)
+        ? recipe.ingredients.filter(item => !ingredientLooksAvailable(item, availableIngredients))
+        : [];
+      recipe.shoppingList = mergeUniqueIngredients([...returnedShoppingList, ...derivedShoppingList]);
     }
 
     res.json(recipe);

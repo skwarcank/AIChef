@@ -1,6 +1,7 @@
 import { render as uploadRender, mount as uploadMount } from './screens/upload.js';
 import { render as detectingRender, mount as detectingMount } from './screens/detecting.js';
 import { render as confirmRender, mount as confirmMount } from './screens/confirm.js';
+import { render as customizeRender, mount as customizeMount } from './screens/customize.js';
 import { render as generatingRender, mount as generatingMount } from './screens/generating.js';
 import { render as recipeRender, mount as recipeMount } from './screens/recipe.js';
 import { render as errorRender, mount as errorMount } from './screens/error.js';
@@ -20,6 +21,17 @@ const state = {
   imagePhotographerUrl: null,
   lastConfirmed: null,
   lastPantry: null,
+  lastPreferences: null,
+  preferences: {
+    dishType: '',
+    cuisine: '',
+    dietaryPreference: '',
+    timeLimit: '',
+    servings: '',
+    skillLevel: '',
+    mustUseIngredients: [],
+    avoidIngredients: '',
+  },
   errorMessage: null,
 };
 
@@ -27,6 +39,7 @@ const screens = {
   upload: { render: uploadRender, mount: uploadMount },
   detecting: { render: detectingRender, mount: detectingMount },
   confirm: { render: confirmRender, mount: confirmMount },
+  customize: { render: customizeRender, mount: customizeMount },
   generating: { render: generatingRender, mount: generatingMount },
   recipe: { render: recipeRender, mount: recipeMount },
   error: { render: errorRender, mount: errorMount },
@@ -73,13 +86,27 @@ const actions = {
     navigate('confirm');
   },
 
-  generateRecipe() {
+  openCustomize() {
     state.confirmed = state.detected.filter((_, i) => !state.removedDetected.includes(i));
     state.lastConfirmed = [...state.confirmed];
     state.lastPantry = state.pantry.filter(p => p.checked).map(p => p.name);
+    navigate('customize');
+  },
+
+  backToConfirm() {
+    navigate('confirm');
+  },
+
+  generateRecipe(preferences) {
+    state.preferences = {
+      ...state.preferences,
+      ...preferences,
+      mustUseIngredients: preferences.mustUseIngredients || [],
+    };
+    state.lastPreferences = { ...state.preferences, mustUseIngredients: [...state.preferences.mustUseIngredients] };
     state.recipeCount++;
     navigate('generating');
-    getRecipe(state.lastConfirmed, state.lastPantry);
+    getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
   },
 
   tryAnotherPhoto() {
@@ -92,6 +119,17 @@ const actions = {
     state.imagePhotographer = null;
     state.imagePhotographerUrl = null;
     state.recipeCount = 0;
+    state.lastPreferences = null;
+    state.preferences = {
+      dishType: '',
+      cuisine: '',
+      dietaryPreference: '',
+      timeLimit: '',
+      servings: '',
+      skillLevel: '',
+      mustUseIngredients: [],
+      avoidIngredients: '',
+    };
     state.errorMessage = null;
     navigate('upload');
   },
@@ -100,10 +138,10 @@ const actions = {
     if (state.recipeCount >= MAX_RECIPES) return;
     state.recipeCount++;
     navigate('generating');
-    getRecipe(state.lastConfirmed, state.lastPantry);
+    getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
   },
 
-  backToConfirm() {
+  editIngredients() {
     navigate('confirm');
   },
 };
@@ -129,12 +167,12 @@ async function detectIngredients(base64) {
   navigate('confirm');
 }
 
-async function getRecipe(ingredients, pantryStaples) {
+async function getRecipe(ingredients, pantryStaples, preferences) {
   try {
     const res = await fetch('/api/recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ingredients, pantryStaples }),
+      body: JSON.stringify({ ingredients, pantryStaples, preferences }),
     });
     const data = await res.json();
     if (data.error) {
@@ -143,8 +181,9 @@ async function getRecipe(ingredients, pantryStaples) {
     } else {
       state.currentRecipe = {
         title: data.title,
-        ingredients: data.ingredients,
-        instructions: data.instructions,
+        ingredients: data.ingredients || [],
+        shoppingList: data.shoppingList || data.missingIngredients || data.neededIngredients || data.toBuy || [],
+        instructions: data.instructions || [],
         searchQuery: data.searchQuery,
       };
       state.imageUrl = null;

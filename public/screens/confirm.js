@@ -41,8 +41,8 @@ export function render(state) {
         <button class="add-btn" id="add-btn">Add</button>
       </div>
 
-      <button class="generate-btn" id="generate-btn" ${!hasNonPantry ? 'disabled' : ''}>
-        🍳 Generate Recipe
+      <button class="generate-btn" id="customize-btn" ${!hasNonPantry ? 'disabled' : ''}>
+        Next: Customize Recipe
       </button>
     </div>
   `;
@@ -74,9 +74,9 @@ export function mount(container, actions) {
     if (e.key === 'Enter') addIngredient();
   });
 
-  const genBtn = container.querySelector('#generate-btn');
-  genBtn.addEventListener('click', () => {
-    if (!genBtn.disabled) actions.generateRecipe();
+  const customizeBtn = container.querySelector('#customize-btn');
+  customizeBtn.addEventListener('click', () => {
+    if (!customizeBtn.disabled) actions.openCustomize();
   });
 }
 

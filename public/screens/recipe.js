@@ -5,6 +5,7 @@ export function render(state) {
   if (!r) return '';
 
   const ingredients = r.ingredients.map(i => `<li>${escapeHtml(i)}</li>`).join('');
+  const shoppingList = (r.shoppingList || []).map(i => `<li>${escapeHtml(i)}</li>`).join('');
   const instructions = r.instructions.map(s => `<li>${escapeHtml(s)}</li>`).join('');
   const atLimit = state.recipeCount >= MAX_RECIPES;
 
@@ -19,6 +20,7 @@ export function render(state) {
   return `
     <div class="screen recipe-screen">
       <button class="action-btn-top" id="try-another-photo">📸 Try Another Photo</button>
+      <button class="action-btn-top" id="edit-ingredients">← Edit Ingredients</button>
 
       ${imageHtml}
       ${attrHtml}
@@ -29,6 +31,14 @@ export function render(state) {
         <h3>Ingredients</h3>
         <ul>${ingredients}</ul>
       </div>
+
+      ${shoppingList ? `
+        <div class="recipe-section shopping-list-section">
+          <h3>Need to Buy</h3>
+          <p class="recipe-note">These ingredients are not in your confirmed ingredients or pantry staples.</p>
+          <ul>${shoppingList}</ul>
+        </div>
+      ` : ''}
 
       <div class="recipe-section">
         <h3>Instructions</h3>
@@ -46,6 +56,7 @@ export function render(state) {
 
 export function mount(container, actions) {
   container.querySelector('#try-another-photo').addEventListener('click', () => actions.tryAnotherPhoto());
+  container.querySelector('#edit-ingredients').addEventListener('click', () => actions.editIngredients());
 
   const retryBtn = container.querySelector('#try-another-recipe');
   retryBtn.addEventListener('click', () => {

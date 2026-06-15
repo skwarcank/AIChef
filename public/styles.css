@@ -151,8 +151,9 @@ input {
   50% { opacity: 0.8; }
 }
 
-/* Confirm */
-.confirm-screen {
+/* Confirm and customize */
+.confirm-screen,
+.customize-screen {
   gap: 12px;
 }
 
@@ -309,6 +310,98 @@ input {
   cursor: default;
 }
 
+.customize-intro {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.preference-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.preference-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.preference-label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.preference-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  color: var(--text);
+  padding: 13px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  outline: none;
+}
+
+.preference-input:focus {
+  border-color: var(--accent);
+}
+
+.preference-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.preference-options {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.preference-field.active .preference-options {
+  display: flex;
+}
+
+.preference-options button,
+.preference-chip {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.preference-options button:active,
+.preference-chip:active {
+  transform: translateY(1px);
+}
+
+.preference-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preference-chip.checked {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.preference-help {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 /* Recipe */
 .recipe-screen {
   gap: 16px;
@@ -378,6 +471,19 @@ input {
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.shopping-list-section {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+
+.recipe-note {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .recipe-counter {
