@@ -407,6 +407,12 @@ input {
   gap: 16px;
 }
 
+.recipe-actions-top {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .recipe-image-wrapper {
   width: 100%;
   border-radius: var(--radius);
@@ -500,8 +506,9 @@ input {
   font-size: 0.9rem;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  align-self: flex-start;
+  flex: 1;
 }
 
 .action-btn-bottom {

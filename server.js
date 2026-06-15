@@ -31,29 +31,71 @@ function extractJSON(text) {
 }
 
 function normalizeIngredientName(value) {
-  return String(value || '')
+  return stringifyIngredientValue(value)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
+function stringifyIngredientValue(value) {
+  if (!value) return '';
+  if (typeof value !== 'object') return String(value);
+
+  const preferredValue = value.name || value.display || value.item || value.ingredient || value.text;
+  if (preferredValue && preferredValue !== value) return stringifyIngredientValue(preferredValue);
+
+  return Object.values(value)
+    .map(part => stringifyIngredientValue(part))
+    .filter(Boolean)
+    .join(' ');
+}
+
 function ingredientLooksAvailable(recipeIngredient, availableIngredients) {
-  const normalized = normalizeIngredientName(recipeIngredient);
+  const normalized = normalizeIngredientName(getIngredientName(recipeIngredient));
   return availableIngredients.some(item => {
-    const available = normalizeIngredientName(item);
-    return available && (normalized.includes(available) || available.includes(normalized));
+    const available = normalizeIngredientName(getIngredientName(item));
+    return available && normalized === available;
   });
+}
+
+function getIngredientName(ingredient) {
+  if (ingredient && typeof ingredient === 'object') {
+    return ingredient.name || ingredient.display || '';
+  }
+  return ingredient;
+}
+
+function getIngredientDisplay(ingredient) {
+  if (ingredient && typeof ingredient === 'object') {
+    return stringifyIngredientValue(ingredient.display || ingredient.name || ingredient);
+  }
+  return stringifyIngredientValue(ingredient);
+}
+
+function normalizeRecipeIngredient(ingredient) {
+  const display = getIngredientDisplay(ingredient).trim();
+  const name = normalizeIngredientName(getIngredientName(ingredient) || display);
+  return { name, display: display || name };
 }
 
 function mergeUniqueIngredients(items) {
   const seen = new Set();
   return items.filter(item => {
-    const key = normalizeIngredientName(item);
+    const key = normalizeIngredientName(getIngredientName(item));
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+function normalizeAvailableIngredients(items) {
+  return (Array.isArray(items) ? items : [])
+    .map(item => ({
+      name: normalizeIngredientName(getIngredientName(item)),
+      display: String(getIngredientDisplay(item) || '').trim(),
+    }))
+    .filter(item => item.name);
 }
 
 app.post('/api/image', async (req, res) => {
@@ -144,7 +186,7 @@ app.post('/api/recipe', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: 'You are a creative chef. Create a practical recipe using the given main ingredients and pantry staples as ingredients the user already has. Follow the user preferences as closely as possible. You may add extra ingredients when needed to make a good recipe or satisfy preferences. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "ingredients": ["qty item", ...], "shoppingList": ["qty item", ...], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. The ingredients array must contain the full recipe ingredient list, including ingredients the user must buy. The shoppingList array must duplicate every ingredient from ingredients that is not already in the provided main ingredients or pantry staples. Use [] for shoppingList only when every recipe ingredient is already available. Include a searchQuery field that describes the finished dish in 3-6 words for searching stock photos. Only return an error if no safe food recipe can be made at all.'
+          content: 'You are a creative chef. Create a practical recipe using the given main ingredients and pantry staples as ingredients the user already has. Follow the user preferences as closely as possible. You may add extra ingredients when needed to make a good recipe or satisfy preferences. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "availableIngredients": [{"name": "normalized ingredient", "display": "original/corrected ingredient"}], "ingredients": [{"name": "normalized ingredient", "display": "qty item"}], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Normalize ingredient names to singular, generic grocery names with no quantities, preparation words, brands, or adjectives unless they identify a different ingredient, for example "2 chopped tomatoes" -> "tomato", "eggs" -> "egg", "tomatto" -> "tomato", but "rice vinegar" stays "rice vinegar". availableIngredients must contain every provided main ingredient and pantry staple, normalized using the same naming convention. The ingredients array must contain the full recipe ingredient list, including ingredients the user must buy. Do not return shoppingList; the app will derive it. Include a searchQuery field that describes the finished dish in 3-6 words for searching stock photos. Only return an error if no safe food recipe can be made at all.'
         },
         {
           role: 'user',
@@ -165,12 +207,21 @@ app.post('/api/recipe', async (req, res) => {
     }
 
     if (!recipe.error) {
-      const returnedShoppingList = recipe.shoppingList || recipe.missingIngredients || recipe.neededIngredients || recipe.toBuy || [];
-      const availableIngredients = [...(ingredients || []), ...(pantryStaples || [])];
+      recipe.title = stringifyIngredientValue(recipe.title).trim() || 'Generated Recipe';
+      recipe.ingredients = Array.isArray(recipe.ingredients)
+        ? recipe.ingredients.map(normalizeRecipeIngredient).filter(item => item.name)
+        : [];
+
+      const availableIngredients = mergeUniqueIngredients(normalizeAvailableIngredients([
+        ...(recipe.availableIngredients || []),
+        ...(ingredients || []),
+        ...(pantryStaples || []),
+      ]));
       const derivedShoppingList = Array.isArray(recipe.ingredients)
         ? recipe.ingredients.filter(item => !ingredientLooksAvailable(item, availableIngredients))
         : [];
-      recipe.shoppingList = mergeUniqueIngredients([...returnedShoppingList, ...derivedShoppingList]);
+      recipe.shoppingList = mergeUniqueIngredients(derivedShoppingList).map(item => getIngredientDisplay(item));
+      recipe.searchQuery = recipe.title;
     }
 
     res.json(recipe);
