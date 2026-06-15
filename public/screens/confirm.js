@@ -60,10 +60,7 @@ export function mount(container, actions) {
   const addBtn = container.querySelector('#add-btn');
 
   function addIngredient() {
-    const name = addInput.value.trim();
-    if (name) {
-      actions.addCustomIngredient(name);
-    }
+    splitIngredients(addInput.value).forEach(name => actions.addCustomIngredient(name));
   }
 
   addBtn.addEventListener('click', addIngredient);
@@ -81,4 +78,11 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function splitIngredients(value) {
+  return value
+    .split(/\s*(?:,|;|\/|\+|\band\b|\n)\s*/i)
+    .map(item => item.trim())
+    .filter(Boolean);
 }

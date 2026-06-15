@@ -75,7 +75,11 @@ const actions = {
   },
 
   addCustomIngredient(name) {
-    state.detected.push(name);
+    const normalizedName = name.trim();
+    const alreadyAdded = state.detected.some(item => item.toLowerCase() === normalizedName.toLowerCase());
+    if (normalizedName && !alreadyAdded) {
+      state.detected.push(normalizedName);
+    }
     navigate('confirm');
   },
 
