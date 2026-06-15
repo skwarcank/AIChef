@@ -1,17 +1,14 @@
 export function render(state) {
-  const hasNonPantry = state.detected.some((_, i) => !state.removedDetected.includes(i));
+  const hasNonPantry = state.detected.length > 0;
 
-  const detectedItems = state.detected.map((item, i) => {
-    const removed = state.removedDetected.includes(i);
-    return `
-      <div class="ingredient-item ${removed ? 'removed' : ''}">
+  const detectedItems = state.detected.map((item, i) => `
+      <div class="ingredient-item">
         <span class="ingredient-name">${escapeHtml(item)}</span>
-        <button class="toggle-btn ${removed ? '' : 'active'}" data-index="${i}">
-          ${removed ? '+' : '✕'}
+        <button class="toggle-btn active" data-index="${i}">
+          ✕
         </button>
       </div>
-    `;
-  }).join('');
+    `).join('');
 
   const pantryItems = state.pantry.map((item, i) => `
     <button class="pantry-chip ${item.checked ? 'checked' : 'unchecked'}" data-index="${i}">

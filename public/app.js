@@ -12,7 +12,6 @@ const MAX_RECIPES = 10;
 const state = {
   photo: null,
   detected: [],
-  removedDetected: [],
   pantry: PANTRY_STAPLES.map(s => ({ name: s, checked: true })),
   recipeCount: 0,
   currentRecipe: null,
@@ -62,17 +61,11 @@ const actions = {
   retakePhoto() {
     state.photo = null;
     state.detected = [];
-    state.removedDetected = [];
     navigate('upload');
   },
 
   toggleDetected(index) {
-    const idx = state.removedDetected.indexOf(index);
-    if (idx > -1) {
-      state.removedDetected.splice(idx, 1);
-    } else {
-      state.removedDetected.push(index);
-    }
+    state.detected.splice(index, 1);
     navigate('confirm');
   },
 
@@ -87,7 +80,7 @@ const actions = {
   },
 
   openCustomize() {
-    state.confirmed = state.detected.filter((_, i) => !state.removedDetected.includes(i));
+    state.confirmed = [...state.detected];
     state.lastConfirmed = [...state.confirmed];
     state.lastPantry = state.pantry.filter(p => p.checked).map(p => p.name);
     navigate('customize');
@@ -112,7 +105,6 @@ const actions = {
   tryAnotherPhoto() {
     state.photo = null;
     state.detected = [];
-    state.removedDetected = [];
     state.confirmed = [];
     state.currentRecipe = null;
     state.imageUrl = null;
