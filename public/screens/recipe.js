@@ -6,6 +6,9 @@ export function render(state) {
 
   const ingredients = r.ingredients.map(i => `<li>${escapeHtml(getIngredientDisplay(i))}</li>`).join('');
   const shoppingList = (r.shoppingList || []).map(i => `<li>${escapeHtml(getIngredientDisplay(i))}</li>`).join('');
+  const omittedIngredients = (r.omittedIngredients || [])
+    .map(i => `<li>${escapeHtml(getIngredientDisplay(i))}${i.reason ? ` <span class="recipe-note">(${escapeHtml(i.reason)})</span>` : ''}</li>`)
+    .join('');
   const instructions = r.instructions.map(s => `<li>${escapeHtml(s)}</li>`).join('');
   const atLimit = state.recipeCount >= MAX_RECIPES;
 
@@ -39,6 +42,14 @@ export function render(state) {
           <h3>Need to Buy</h3>
           <p class="recipe-note">These ingredients are not in your confirmed ingredients or pantry staples.</p>
           <ul>${shoppingList}</ul>
+        </div>
+      ` : ''}
+
+      ${omittedIngredients ? `
+        <div class="recipe-section">
+          <h3>Not Used</h3>
+          <p class="recipe-note">These confirmed ingredients were left out to keep the recipe coherent.</p>
+          <ul>${omittedIngredients}</ul>
         </div>
       ` : ''}
 

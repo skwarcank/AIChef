@@ -38,6 +38,12 @@ function normalizeIngredientName(value) {
     .trim();
 }
 
+function canonicalIngredientName(value) {
+  return normalizeIngredientName(value)
+    .replace(/ies$/, 'y')
+    .replace(/s$/, '');
+}
+
 function stringifyIngredientValue(value) {
   if (!value) return '';
   if (typeof value !== 'object') return String(value);
@@ -52,9 +58,9 @@ function stringifyIngredientValue(value) {
 }
 
 function ingredientLooksAvailable(recipeIngredient, availableIngredients) {
-  const normalized = normalizeIngredientName(getIngredientName(recipeIngredient));
+  const normalized = canonicalIngredientName(getIngredientName(recipeIngredient));
   return availableIngredients.some(item => {
-    const available = normalizeIngredientName(getIngredientName(item));
+    const available = canonicalIngredientName(getIngredientName(item));
     return available && normalized === available;
   });
 }
@@ -76,7 +82,11 @@ function getIngredientDisplay(ingredient) {
 function normalizeRecipeIngredient(ingredient) {
   const display = getIngredientDisplay(ingredient).trim();
   const name = normalizeIngredientName(getIngredientName(ingredient) || display);
-  return { name, display: display || name };
+  const normalizedDisplay = normalizeIngredientName(display);
+  const readableDisplay = display && name && !normalizedDisplay.includes(name)
+    ? `${display} ${name}`
+    : display;
+  return { name, display: readableDisplay || name };
 }
 
 function mergeUniqueIngredients(items) {
@@ -186,7 +196,7 @@ app.post('/api/recipe', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: 'You are a creative chef. Create a practical recipe using the given main ingredients and pantry staples as ingredients the user already has. Follow the user preferences as closely as possible. You may add extra ingredients when needed to make a good recipe or satisfy preferences. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "availableIngredients": [{"name": "normalized ingredient", "display": "original/corrected ingredient"}], "ingredients": [{"name": "normalized ingredient", "display": "qty item"}], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Normalize ingredient names to singular, generic grocery names with no quantities, preparation words, brands, or adjectives unless they identify a different ingredient, for example "2 chopped tomatoes" -> "tomato", "eggs" -> "egg", "tomatto" -> "tomato", but "rice vinegar" stays "rice vinegar". availableIngredients must contain every provided main ingredient and pantry staple, normalized using the same naming convention. The ingredients array must contain the full recipe ingredient list, including ingredients the user must buy. Do not return shoppingList; the app will derive it. Include a searchQuery field that describes the finished dish in 3-6 words for searching stock photos. Only return an error if no safe food recipe can be made at all.'
+          content: 'You are a practical home-cooking chef, not a novelty/fusion chef. Optimize for a familiar, coherent, good-tasting recipe that an average home cook would recognize. Treat the provided main ingredients and pantry staples as ingredients the user already has, not as a mandatory checklist. First choose a conventional dish idea from the compatible ingredients. Use as many main ingredients as naturally fit that dish. Omit outlier ingredients that would create an unusual, forced, sweet/savory, dessert/savory, or low-quality pairing unless the pairing is common and recognizable. Must-use ingredients from preferences are mandatory; otherwise, ingredient quality is more important than using every item. You may add at most 2 non-pantry supporting ingredients only when important for recipe quality; do not add unavailable proteins, starches, or major components. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "availableIngredients": [{"name": "normalized ingredient", "display": "original/corrected ingredient"}], "ingredients": [{"name": "normalized ingredient", "display": "amount + ingredient name"}], "omittedIngredients": [{"name": "normalized ingredient", "display": "original ingredient", "reason": "brief culinary reason"}], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Normalize ingredient names to singular, generic grocery names with no quantities, preparation words, brands, or adjectives unless they identify a different ingredient, for example "2 chopped tomatoes" -> "tomato", "eggs" -> "egg", "tomatto" -> "tomato", but "rice vinegar" stays "rice vinegar". availableIngredients must contain every provided main ingredient and pantry staple, normalized using the same naming convention. ingredients must contain the full recipe ingredient list, including ingredients the user must buy. Every ingredients[].display value must include a practical quantity or amount phrase plus the ingredient name, for example "2 chicken breasts", "1 cup rice", "2 cloves garlic", "salt, to taste", or "1 tablespoon olive oil". omittedIngredients must list every provided main ingredient that is not used, with honest reasons. The title and searchQuery must not mention omitted ingredients. Do not return shoppingList; the app will derive it. Only return an error if no safe food recipe can be made at all.'
         },
         {
           role: 'user',
@@ -194,7 +204,7 @@ app.post('/api/recipe', async (req, res) => {
         }
       ],
       max_tokens: 1000,
-      temperature: 0.7,
+      temperature: 0.3,
       response_format: { type: 'json_object' },
     });
 
@@ -211,6 +221,28 @@ app.post('/api/recipe', async (req, res) => {
       recipe.ingredients = Array.isArray(recipe.ingredients)
         ? recipe.ingredients.map(normalizeRecipeIngredient).filter(item => item.name)
         : [];
+      const pantryNames = new Set((pantryStaples || []).map(canonicalIngredientName));
+      const usedIngredientNames = new Set(recipe.ingredients.map(item => canonicalIngredientName(item.name)));
+      const suppliedMainIngredients = normalizeAvailableIngredients(ingredients || []);
+      const modelOmissions = Array.isArray(recipe.omittedIngredients)
+        ? recipe.omittedIngredients
+          .map(item => ({
+            ...normalizeRecipeIngredient(item),
+            reason: stringifyIngredientValue(item.reason).trim(),
+          }))
+          .filter(item => item.name && item.name !== 'none' && !pantryNames.has(canonicalIngredientName(item.name)))
+        : [];
+      const omittedNames = new Set(modelOmissions.map(item => canonicalIngredientName(item.name)));
+      const derivedOmissions = suppliedMainIngredients
+        .filter(item => {
+          const name = canonicalIngredientName(item.name);
+          return name && !usedIngredientNames.has(name) && !omittedNames.has(name);
+        })
+        .map(item => ({
+          ...item,
+          reason: 'Left out to keep the recipe coherent.',
+        }));
+      recipe.omittedIngredients = mergeUniqueIngredients([...modelOmissions, ...derivedOmissions]);
 
       const availableIngredients = mergeUniqueIngredients(normalizeAvailableIngredients([
         ...(recipe.availableIngredients || []),

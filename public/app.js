@@ -182,6 +182,7 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
       state.currentRecipe = {
         title: data.title,
         ingredients: data.ingredients || [],
+        omittedIngredients: data.omittedIngredients || [],
         shoppingList: data.shoppingList || data.missingIngredients || data.neededIngredients || data.toBuy || [],
         instructions: data.instructions || [],
         searchQuery: data.searchQuery,
