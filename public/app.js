@@ -21,6 +21,7 @@ const state = {
   lastConfirmed: null,
   lastPantry: null,
   lastPreferences: null,
+  previousTitles: [],
   preferences: {
     dishType: '',
     cuisine: '',
@@ -101,6 +102,7 @@ const actions = {
       mustUseIngredients: preferences.mustUseIngredients || [],
     };
     state.lastPreferences = { ...state.preferences, mustUseIngredients: [...state.preferences.mustUseIngredients] };
+    if (state.currentRecipe?.title) state.previousTitles.push(state.currentRecipe.title);
     state.recipeCount++;
     navigate('generating');
     getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
@@ -115,6 +117,7 @@ const actions = {
     state.imagePhotographer = null;
     state.imagePhotographerUrl = null;
     state.recipeCount = 0;
+    state.previousTitles = [];
     state.lastPreferences = null;
     state.preferences = {
       dishType: '',
@@ -132,6 +135,7 @@ const actions = {
 
   tryAnotherRecipe() {
     if (state.recipeCount >= MAX_RECIPES) return;
+    if (state.currentRecipe?.title) state.previousTitles.push(state.currentRecipe.title);
     state.recipeCount++;
     navigate('generating');
     getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
@@ -168,7 +172,7 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
     const res = await fetch('/api/recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ingredients, pantryStaples, preferences }),
+      body: JSON.stringify({ ingredients, pantryStaples, preferences, previousTitles: state.previousTitles }),
     });
     const data = await res.json();
     if (data.error) {
