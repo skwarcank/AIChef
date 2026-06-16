@@ -1,6 +1,6 @@
 const MAX_RECIPES = 10;
 
-export function render(state) {
+export function render(state, ui) {
   const r = state.currentRecipe;
   if (!r) return '';
 
@@ -17,14 +17,14 @@ export function render(state) {
     : `<div class="recipe-image-wrapper"><div class="recipe-image-skeleton"></div></div>`;
 
   const attrHtml = state.imagePhotographer
-    ? `<p class="recipe-attribution">Photo by <a href="${escapeHtml(state.imagePhotographerUrl)}" target="_blank" rel="noopener">${escapeHtml(state.imagePhotographer)}</a></p>`
+    ? `<p class="recipe-attribution">${ui.recipe.photoBy}<a href="${escapeHtml(state.imagePhotographerUrl)}" target="_blank" rel="noopener">${escapeHtml(state.imagePhotographer)}</a></p>`
     : '';
 
   return `
     <div class="screen recipe-screen">
       <div class="recipe-actions-top">
-        <button class="action-btn-top" id="edit-ingredients">← Ingredients</button>
-        <button class="action-btn-top" id="try-another-photo">📸 New Photo</button>
+        <button class="action-btn-top" id="edit-ingredients">${ui.recipe.back}</button>
+        <button class="action-btn-top" id="try-another-photo">${ui.recipe.newPhoto}</button>
       </div>
 
       ${imageHtml}
@@ -33,36 +33,36 @@ export function render(state) {
       <h1 class="recipe-title">${escapeHtml(r.title)}</h1>
 
       <div class="recipe-section">
-        <h3>Ingredients</h3>
+        <h3>${ui.recipe.ingredients}</h3>
         <ul>${ingredients}</ul>
       </div>
 
       ${shoppingList ? `
         <div class="recipe-section shopping-list-section">
-          <h3>Need to Buy</h3>
-          <p class="recipe-note">These ingredients are not in your confirmed ingredients or pantry staples.</p>
+          <h3>${ui.recipe.needToBuy}</h3>
+          <p class="recipe-note">${ui.recipe.needToBuyNote}</p>
           <ul>${shoppingList}</ul>
         </div>
       ` : ''}
 
       ${omittedIngredients ? `
         <div class="recipe-section">
-          <h3>Not Used</h3>
-          <p class="recipe-note">These confirmed ingredients were left out to keep the recipe coherent.</p>
+          <h3>${ui.recipe.notUsed}</h3>
+          <p class="recipe-note">${ui.recipe.notUsedNote}</p>
           <ul>${omittedIngredients}</ul>
         </div>
       ` : ''}
 
       <div class="recipe-section">
-        <h3>Instructions</h3>
+        <h3>${ui.recipe.instructions}</h3>
         <ol>${instructions}</ol>
       </div>
 
       <button class="action-btn-bottom" id="try-another-recipe" ${atLimit ? 'disabled' : ''}>
-        🔄 Try Another Recipe
+        ${ui.recipe.tryAnotherRecipe}
       </button>
 
-      <p class="recipe-counter">Recipe ${state.recipeCount} of ${MAX_RECIPES}</p>
+      <p class="recipe-counter">${ui.recipe.counter(state.recipeCount, MAX_RECIPES)}</p>
     </div>
   `;
 }

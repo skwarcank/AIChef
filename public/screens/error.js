@@ -1,11 +1,11 @@
-export function render(state) {
+export function render(state, ui) {
   return `
     <div class="screen error-screen">
       <div class="error-icon">😕</div>
-      <p class="error-message">${escapeHtml(state.errorMessage || 'Could not generate a recipe with those ingredients.')}</p>
+      <p class="error-message">${escapeHtml(state.errorMessage || ui.error.fallback)}</p>
       <div class="error-actions">
-        <button class="action-btn-bottom" id="back-to-confirm">← Back to Ingredients</button>
-        <button class="action-btn-top" id="try-another-photo" style="align-self: center;">📸 Try Another Photo</button>
+        <button class="action-btn-bottom" id="back-to-confirm">${ui.error.back}</button>
+        <button class="action-btn-top" id="try-another-photo" style="align-self: center;">${ui.error.tryAnotherPhoto}</button>
       </div>
     </div>
   `;

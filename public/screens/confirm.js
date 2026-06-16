@@ -1,4 +1,4 @@
-export function render(state) {
+export function render(state, ui) {
   const hasNonPantry = state.detected.length > 0;
 
   const detectedItems = state.detected.map((item, i) => `
@@ -8,38 +8,38 @@ export function render(state) {
           ✕
         </button>
       </div>
-    `).join('');
+  `).join('');
 
   const pantryItems = state.pantry.map((item, i) => `
     <button class="pantry-chip ${item.checked ? 'checked' : 'unchecked'}" data-index="${i}">
-      ${item.checked ? '✓ ' : ''}${item.name}
+      ${item.checked ? '✓ ' : ''}${escapeHtml(ui.pantryLabels[item.name] || item.name)}
     </button>
   `).join('');
 
   return `
     <div class="screen confirm-screen">
       <div class="screen-header">
-        <button class="back-btn" id="retake-btn">← Retake Photo</button>
-        <span class="screen-title">Confirm Ingredients</span>
+        <button class="back-btn" id="retake-btn">${ui.confirm.retake}</button>
+        <span class="screen-title">${ui.confirm.title}</span>
       </div>
 
-      <span class="section-label">Detected Ingredients</span>
+      <span class="section-label">${ui.confirm.detected}</span>
       <div class="ingredient-list" id="detected-list">
-        ${detectedItems || '<p style="color: var(--text-secondary); padding: 8px 0;">No ingredients detected. Add them below.</p>'}
+        ${detectedItems || `<p style="color: var(--text-secondary); padding: 8px 0;">${ui.confirm.noneDetected}</p>`}
       </div>
 
-      <span class="section-label">Pantry Staples</span>
+      <span class="section-label">${ui.confirm.pantry}</span>
       <div class="pantry-list" id="pantry-list">
         ${pantryItems}
       </div>
 
       <div class="add-ingredient-area">
-        <input class="add-input" id="add-input" placeholder="Add ingredient..." autocomplete="off" />
-        <button class="add-btn" id="add-btn">Add</button>
+        <input class="add-input" id="add-input" placeholder="${ui.confirm.addPlaceholder}" autocomplete="off" />
+        <button class="add-btn" id="add-btn">${ui.confirm.addButton}</button>
       </div>
 
       <button class="generate-btn" id="customize-btn" ${!hasNonPantry ? 'disabled' : ''}>
-        Next: Customize Recipe
+        ${ui.confirm.nextButton}
       </button>
     </div>
   `;

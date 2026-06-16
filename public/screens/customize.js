@@ -1,45 +1,8 @@
-const FIELDS = [
-  {
-    key: 'dishType',
-    label: 'Dish type',
-    placeholder: 'Any, pasta, soup, stir-fry...',
-    options: ['Any', 'Pasta', 'Soup', 'Stir-fry', 'Curry', 'Salad', 'Bowl', 'Sandwich', 'Breakfast', 'Snack'],
-  },
-  {
-    key: 'cuisine',
-    label: 'Cuisine',
-    placeholder: 'Any, Italian, Mexican...',
-    options: ['Any', 'Italian', 'Mexican', 'Indian', 'Thai', 'Japanese', 'Mediterranean', 'Korean', 'American'],
-  },
-  {
-    key: 'dietaryPreference',
-    label: 'Diet',
-    placeholder: 'None, vegan, gluten-free...',
-    options: ['None', 'Vegan', 'Vegetarian', 'Gluten-free', 'Dairy-free', 'High-protein', 'Low-carb'],
-  },
-  {
-    key: 'timeLimit',
-    label: 'Time available',
-    placeholder: '20 minutes, under 30 minutes...',
-    options: ['10 minutes', '20 minutes', '30 minutes', '45 minutes', 'No rush'],
-  },
-  {
-    key: 'servings',
-    label: 'Servings',
-    placeholder: '1, 2, 4...',
-    options: ['1', '2', '4', '6'],
-  },
-  {
-    key: 'skillLevel',
-    label: 'Skill level',
-    placeholder: 'Beginner, intermediate...',
-    options: ['Beginner', 'Intermediate', 'Advanced'],
-  },
-];
+const FIELD_ORDER = ['dishType', 'cuisine', 'dietaryPreference', 'timeLimit', 'servings', 'skillLevel'];
 
-export function render(state) {
+export function render(state, ui) {
   const prefs = state.preferences || {};
-  const fields = FIELDS.map(field => renderField(field, prefs[field.key])).join('');
+  const fields = FIELD_ORDER.map(key => renderField(key, ui.customize.fields[key], prefs[key])).join('');
   const mustUse = (state.confirmed || []).map(item => {
     const selected = (prefs.mustUseIngredients || []).includes(item);
     return `
@@ -52,29 +15,29 @@ export function render(state) {
   return `
     <div class="screen customize-screen">
       <div class="screen-header">
-        <button class="back-btn" id="back-btn">← Ingredients</button>
-        <span class="screen-title">Customize Recipe</span>
+        <button class="back-btn" id="back-btn">${ui.customize.back}</button>
+        <span class="screen-title">${ui.customize.title}</span>
       </div>
 
-      <p class="customize-intro">Tell AIChef what kind of meal you want. Choose a suggestion or type your own.</p>
+      <p class="customize-intro">${ui.customize.intro}</p>
 
       <div class="preference-form">
         ${fields}
 
         <div class="preference-field">
-          <label class="preference-label">Must-use ingredients</label>
+          <label class="preference-label">${ui.customize.mustUse}</label>
           <div class="preference-chip-list" id="must-use-list">
-            ${mustUse || '<span class="preference-help">No ingredients selected.</span>'}
+            ${mustUse || `<span class="preference-help">${ui.customize.noneSelected}</span>`}
           </div>
         </div>
 
         <div class="preference-field">
-          <label class="preference-label" for="avoidIngredients">Avoid anything?</label>
-          <input class="preference-input" id="avoidIngredients" value="${escapeHtml(prefs.avoidIngredients || '')}" placeholder="Spicy food, mushrooms, peanuts..." autocomplete="off" />
+          <label class="preference-label" for="avoidIngredients">${ui.customize.avoidLabel}</label>
+          <input class="preference-input" id="avoidIngredients" value="${escapeHtml(prefs.avoidIngredients || '')}" placeholder="${ui.customize.avoidPlaceholder}" autocomplete="off" />
         </div>
       </div>
 
-      <button class="generate-btn" id="generate-btn">🍳 Generate Recipe</button>
+      <button class="generate-btn" id="generate-btn">${ui.customize.generate}</button>
     </div>
   `;
 }
@@ -120,15 +83,15 @@ export function mount(container, actions) {
   });
 }
 
-function renderField(field, value = '') {
+function renderField(key, field, value = '') {
   const options = field.options.map(option => `
-    <button type="button" data-value="${escapeHtml(option)}">${escapeHtml(option)}</button>
+    <button type="button" data-value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>
   `).join('');
 
   return `
     <div class="preference-field">
-      <label class="preference-label" for="${field.key}">${field.label}</label>
-      <input class="preference-input" id="${field.key}" data-field="${field.key}" value="${escapeHtml(value || '')}" placeholder="${escapeHtml(field.placeholder)}" autocomplete="off" />
+      <label class="preference-label" for="${key}">${field.label}</label>
+      <input class="preference-input" id="${key}" data-field="${key}" value="${escapeHtml(value || '')}" placeholder="${escapeHtml(field.placeholder)}" autocomplete="off" />
       <div class="preference-options">${options}</div>
     </div>
   `;

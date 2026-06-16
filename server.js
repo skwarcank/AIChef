@@ -178,8 +178,16 @@ app.post('/api/detect', async (req, res) => {
 
 app.post('/api/recipe', async (req, res) => {
   try {
-    const { ingredients, pantryStaples, previousTitles } = req.body;
+    const { ingredients, pantryStaples, previousTitles, locale = 'en' } = req.body;
     const preferences = req.body.preferences || {};
+    const wantsPolish = locale === 'pl';
+    const responseLanguageInstruction = wantsPolish
+      ? 'Return user-facing recipe content in natural Polish: title, ingredients[].display, omittedIngredients[].display, omittedIngredients[].reason, instructions, and any explanatory text. Keep JSON keys exactly as requested. Keep technical fields ingredients[].name, availableIngredients[].name, omittedIngredients[].name, and searchQuery in concise English for matching and image search quality. You may reason about recipe quality in English internally, but the visible recipe text must read like idiomatic Polish.'
+      : null;
+    const generatedRecipeTitleFallback = wantsPolish ? 'Wygenerowany przepis' : 'Generated Recipe';
+    const derivedOmissionReason = wantsPolish
+      ? 'Pominięto, aby przepis był spójny.'
+      : 'Left out to keep the recipe coherent.';
     const preferenceLines = [
       preferences.dishType && `Dish type: ${preferences.dishType}`,
       preferences.cuisine && `Cuisine: ${preferences.cuisine}`,
@@ -198,11 +206,15 @@ app.post('/api/recipe', async (req, res) => {
           role: 'system',
           content: 'You are a creative home cook. Given a set of ingredients, create a tasty, coherent recipe. Be creative with cuisines and preparations — don\'t always default to the most obvious dish. Treat the provided main ingredients and pantry staples as ingredients the user already has, not as a mandatory checklist. Use as many main ingredients as naturally fit the dish. Omit outlier ingredients that would create an unusual, forced, sweet/savory, dessert/savory, or low-quality pairing unless the pairing is common and recognizable. Must-use ingredients from preferences are mandatory; otherwise, ingredient quality is more important than using every item. You may add at most 2 non-pantry supporting ingredients only when important for recipe quality; do not add unavailable proteins, starches, or major components. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "availableIngredients": [{"name": "normalized ingredient", "display": "original/corrected ingredient"}], "ingredients": [{"name": "normalized ingredient", "display": "amount + ingredient name"}], "omittedIngredients": [{"name": "normalized ingredient", "display": "original ingredient", "reason": "brief culinary reason"}], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Normalize ingredient names to singular, generic grocery names with no quantities, preparation words, brands, or adjectives unless they identify a different ingredient, for example "2 chopped tomatoes" -> "tomato", "eggs" -> "egg", "tomatto" -> "tomato", but "rice vinegar" stays "rice vinegar". availableIngredients must contain every provided main ingredient and pantry staple, normalized using the same naming convention. ingredients must contain the full recipe ingredient list, including ingredients the user must buy. Every ingredients[].display value must include a practical quantity or amount phrase plus the ingredient name, for example "2 chicken breasts", "1 cup rice", "2 cloves garlic", "salt, to taste", or "1 tablespoon olive oil". omittedIngredients must list every provided main ingredient that is not used, with honest reasons. The title and searchQuery must not mention omitted ingredients. Do not return shoppingList; the app will derive it. Only return an error if no safe food recipe can be made at all.'
         },
+        responseLanguageInstruction && {
+          role: 'system',
+          content: responseLanguageInstruction,
+        },
         {
           role: 'user',
           content: `Main ingredients: ${ingredients.join(', ')}. Pantry staples: ${pantryStaples.join(', ')}.${preferenceLines ? `\nPreferences:\n${preferenceLines}` : ''}${previousTitles?.length ? `\n\nPreviously suggested recipes: ${previousTitles.join(', ')}. Those are already made. Suggest something completely different — do not repeat or make a variation of those dishes.` : ''}`
         }
-      ],
+      ].filter(Boolean),
       max_tokens: 1000,
       temperature: 0.8,
       response_format: { type: 'json_object' },
@@ -213,11 +225,11 @@ app.post('/api/recipe', async (req, res) => {
     try {
       recipe = JSON.parse(extractJSON(text));
     } catch {
-      recipe = { error: true, message: 'Could not generate a recipe. Try different ingredients.' };
+      recipe = { error: true, message: wantsPolish ? 'Nie udało się wygenerować przepisu. Spróbuj innych składników.' : 'Could not generate a recipe. Try different ingredients.' };
     }
 
     if (!recipe.error) {
-      recipe.title = stringifyIngredientValue(recipe.title).trim() || 'Generated Recipe';
+      recipe.title = stringifyIngredientValue(recipe.title).trim() || generatedRecipeTitleFallback;
       recipe.ingredients = Array.isArray(recipe.ingredients)
         ? recipe.ingredients.map(normalizeRecipeIngredient).filter(item => item.name)
         : [];
@@ -240,7 +252,7 @@ app.post('/api/recipe', async (req, res) => {
         })
         .map(item => ({
           ...item,
-          reason: 'Left out to keep the recipe coherent.',
+          reason: derivedOmissionReason,
         }));
       recipe.omittedIngredients = mergeUniqueIngredients([...modelOmissions, ...derivedOmissions]);
 
@@ -253,13 +265,14 @@ app.post('/api/recipe', async (req, res) => {
         ? recipe.ingredients.filter(item => !ingredientLooksAvailable(item, availableIngredients))
         : [];
       recipe.shoppingList = mergeUniqueIngredients(derivedShoppingList).map(item => getIngredientDisplay(item));
-      recipe.searchQuery = recipe.title;
+      recipe.searchQuery = stringifyIngredientValue(recipe.searchQuery).trim() || recipe.title;
     }
 
     res.json(recipe);
   } catch (err) {
     console.error('Recipe error:', err);
-    res.status(500).json({ error: true, message: 'Failed to generate recipe.' });
+    const wantsPolish = req.body?.locale === 'pl';
+    res.status(500).json({ error: true, message: wantsPolish ? 'Nie udało się wygenerować przepisu.' : 'Failed to generate recipe.' });
   }
 });
 

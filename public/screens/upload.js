@@ -1,16 +1,16 @@
 import { readFileAsDataURL, resizeImage } from '../utils.js';
 
-export function render() {
+export function render(state, ui) {
   return `
     <div class="screen upload-screen">
       <div class="logo">AI<span>Chef</span></div>
       <button class="camera-btn" id="camera-btn">
         <span class="camera-icon">📷</span>
-        Take a Photo
+        ${ui.upload.takePhoto}
       </button>
-      <span class="upload-link-txt">─ or ─</span>
-      <button class="upload-link" id="upload-link">⬆ Upload a Photo</button>
-      <span class="upload-hint">Max 1 photo</span>
+      <span class="upload-link-txt">${ui.upload.orLabel}</span>
+      <button class="upload-link" id="upload-link">⬆ ${ui.upload.uploadPhoto}</button>
+      <span class="upload-hint">${ui.upload.maxPhoto}</span>
       <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
       <input type="file" id="upload-input" accept="image/*" style="display:none">
     </div>

@@ -5,11 +5,13 @@ import { render as customizeRender, mount as customizeMount } from './screens/cu
 import { render as generatingRender, mount as generatingMount } from './screens/generating.js';
 import { render as recipeRender, mount as recipeMount } from './screens/recipe.js';
 import { render as errorRender, mount as errorMount } from './screens/error.js';
+import { getUI } from './i18n.js';
 
 const PANTRY_STAPLES = ['Salt', 'Pepper', 'Olive Oil', 'Water'];
 const MAX_RECIPES = 10;
 
 const state = {
+  locale: 'pl',
   photo: null,
   detected: [],
   pantry: PANTRY_STAPLES.map(s => ({ name: s, checked: true })),
@@ -48,7 +50,9 @@ const screens = {
 function navigate(screenName) {
   const screen = screens[screenName];
   const app = document.getElementById('app');
-  app.innerHTML = screen.render(state);
+  const ui = getUI(state.locale);
+  document.documentElement.lang = state.locale;
+  app.innerHTML = screen.render(state, ui);
   screen.mount(app, actions);
 }
 
@@ -147,6 +151,7 @@ const actions = {
 };
 
 async function detectIngredients(base64) {
+  const ui = getUI(state.locale);
   try {
     const res = await fetch('/api/detect', {
       method: 'POST',
@@ -155,28 +160,29 @@ async function detectIngredients(base64) {
     });
     const data = await res.json();
     if (!res.ok || data.error) {
-      state.errorMessage = data.message || 'Failed to detect ingredients. Try a clearer photo.';
+      state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.detectFailed;
       return navigate('error');
     }
     state.detected = data.ingredients || [];
   } catch (err) {
     console.error(err);
-    state.errorMessage = 'Network error. Check your connection and try again.';
+    state.errorMessage = ui.errors.network;
     return navigate('error');
   }
   navigate('confirm');
 }
 
 async function getRecipe(ingredients, pantryStaples, preferences) {
+  const ui = getUI(state.locale);
   try {
     const res = await fetch('/api/recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ingredients, pantryStaples, preferences, previousTitles: state.previousTitles }),
+      body: JSON.stringify({ ingredients, pantryStaples, preferences, previousTitles: state.previousTitles, locale: state.locale }),
     });
     const data = await res.json();
     if (data.error) {
-      state.errorMessage = data.message;
+      state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.recipeFailed;
       navigate('error');
     } else {
       state.currentRecipe = {
@@ -197,7 +203,7 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
     }
   } catch (err) {
     console.error(err);
-    state.errorMessage = 'Something went wrong. Try again.';
+    state.errorMessage = ui.errors.generic;
     navigate('error');
   }
 }
@@ -219,6 +225,20 @@ async function fetchImage(query) {
   } catch (err) {
     console.error(err);
   }
+}
+
+function localizeErrorMessage(message, ui) {
+  const normalized = String(message || '').trim();
+  const map = {
+    'Failed to detect ingredients. Try a clearer photo.': ui.errors.detectFailed,
+    'Network error. Check your connection and try again.': ui.errors.network,
+    'Something went wrong. Try again.': ui.errors.generic,
+    'Could not generate a recipe. Try different ingredients.': ui.errors.recipeFailed,
+    'Failed to generate recipe.': ui.errors.recipeFailed,
+    'Failed to analyze image.': ui.errors.imageFailed,
+    'Could not generate a recipe with those ingredients.': ui.error.fallback,
+  };
+  return map[normalized] || null;
 }
 
 navigate('upload');
