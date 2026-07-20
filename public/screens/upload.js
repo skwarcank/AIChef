@@ -5,14 +5,14 @@ export function render(state, ui) {
     <div class="screen upload-screen">
       <div class="logo">AI<span>Chef</span></div>
       <button class="camera-btn" id="camera-btn">
-        <span class="camera-icon">📷</span>
+        <span class="camera-icon" aria-hidden="true">📷</span>
         ${ui.upload.takePhoto}
       </button>
       <span class="upload-link-txt">${ui.upload.orLabel}</span>
-      <button class="upload-link" id="upload-link">⬆ ${ui.upload.uploadPhoto}</button>
+      <button class="upload-link" id="upload-link">${ui.upload.uploadPhoto}</button>
       <span class="upload-hint">${ui.upload.maxPhoto}</span>
-      <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
-      <input type="file" id="upload-input" accept="image/*" style="display:none">
+      <input class="file-input-hidden" type="file" id="camera-input" accept="image/*" capture="environment">
+      <input class="file-input-hidden" type="file" id="upload-input" accept="image/*">
     </div>
   `;
 }

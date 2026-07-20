@@ -9,6 +9,9 @@ import { getUI } from './i18n.js';
 
 const PANTRY_STAPLES = ['Salt', 'Pepper', 'Olive Oil', 'Water'];
 const MAX_RECIPES = 10;
+let activeRequest = null;
+let requestSequence = 0;
+let imageRequestSequence = 0;
 
 const state = {
   locale: 'pl',
@@ -23,6 +26,10 @@ const state = {
   lastConfirmed: null,
   lastPantry: null,
   lastPreferences: null,
+  confirmed: [],
+  lastRemovedIngredient: null,
+  errorType: null,
+  pendingReturnScreen: null,
   previousTitles: [],
   preferences: {
     dishType: '',
@@ -58,19 +65,37 @@ function navigate(screenName) {
 
 const actions = {
   onPhoto(base64) {
+    abortActiveRequest();
     state.photo = base64;
+    state.errorMessage = null;
+    state.errorType = null;
     navigate('detecting');
     detectIngredients(base64);
   },
 
   retakePhoto() {
+    abortActiveRequest();
     state.photo = null;
     state.detected = [];
+    state.confirmed = [];
+    state.lastRemovedIngredient = null;
+    state.errorMessage = null;
+    state.errorType = null;
     navigate('upload');
   },
 
   toggleDetected(index) {
-    state.detected.splice(index, 1);
+    const [removed] = state.detected.splice(index, 1);
+    if (removed) state.lastRemovedIngredient = { name: removed, index };
+    navigate('confirm');
+  },
+
+  restoreDetected() {
+    if (!state.lastRemovedIngredient) return;
+    const { name, index } = state.lastRemovedIngredient;
+    const insertAt = Math.min(index, state.detected.length);
+    state.detected.splice(insertAt, 0, name);
+    state.lastRemovedIngredient = null;
     navigate('confirm');
   },
 
@@ -84,6 +109,7 @@ const actions = {
     const alreadyAdded = state.detected.some(item => item.toLowerCase() === normalizedName.toLowerCase());
     if (normalizedName && !alreadyAdded) {
       state.detected.push(normalizedName);
+      state.lastRemovedIngredient = null;
     }
     navigate('confirm');
   },
@@ -92,6 +118,7 @@ const actions = {
     state.confirmed = [...state.detected];
     state.lastConfirmed = [...state.confirmed];
     state.lastPantry = state.pantry.filter(p => p.checked).map(p => p.name);
+    state.lastRemovedIngredient = null;
     navigate('customize');
   },
 
@@ -100,22 +127,27 @@ const actions = {
   },
 
   generateRecipe(preferences) {
+    abortActiveRequest();
     state.preferences = {
       ...state.preferences,
       ...preferences,
       mustUseIngredients: preferences.mustUseIngredients || [],
     };
     state.lastPreferences = { ...state.preferences, mustUseIngredients: [...state.preferences.mustUseIngredients] };
-    if (state.currentRecipe?.title) state.previousTitles.push(state.currentRecipe.title);
-    state.recipeCount++;
+    addPreviousTitle(state.currentRecipe?.title);
+    state.errorMessage = null;
+    state.errorType = null;
+    state.pendingReturnScreen = 'customize';
     navigate('generating');
     getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
   },
 
   tryAnotherPhoto() {
+    abortActiveRequest();
     state.photo = null;
     state.detected = [];
     state.confirmed = [];
+    state.lastRemovedIngredient = null;
     state.currentRecipe = null;
     state.imageUrl = null;
     state.imagePhotographer = null;
@@ -134,13 +166,18 @@ const actions = {
       avoidIngredients: '',
     };
     state.errorMessage = null;
+    state.errorType = null;
+    state.pendingReturnScreen = null;
     navigate('upload');
   },
 
   tryAnotherRecipe() {
     if (state.recipeCount >= MAX_RECIPES) return;
-    if (state.currentRecipe?.title) state.previousTitles.push(state.currentRecipe.title);
-    state.recipeCount++;
+    abortActiveRequest();
+    addPreviousTitle(state.currentRecipe?.title);
+    state.errorMessage = null;
+    state.errorType = null;
+    state.pendingReturnScreen = 'recipe';
     navigate('generating');
     getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
   },
@@ -148,41 +185,97 @@ const actions = {
   editIngredients() {
     navigate('confirm');
   },
+
+  cancelDetection() {
+    abortActiveRequest();
+    state.errorMessage = null;
+    state.errorType = null;
+    navigate('upload');
+  },
+
+  cancelGeneration() {
+    abortActiveRequest();
+    state.errorMessage = null;
+    state.errorType = null;
+    navigate(state.pendingReturnScreen === 'recipe' && state.currentRecipe ? 'recipe' : 'customize');
+  },
+
+  retryLastAction() {
+    if (state.errorType === 'detect' && state.photo) {
+      state.errorMessage = null;
+      state.errorType = null;
+      navigate('detecting');
+      return detectIngredients(state.photo);
+    }
+
+    if (state.errorType === 'recipe' && state.lastConfirmed && state.lastPantry && state.lastPreferences) {
+      state.errorMessage = null;
+      state.errorType = null;
+      state.pendingReturnScreen = state.currentRecipe ? 'recipe' : 'customize';
+      navigate('generating');
+      return getRecipe(state.lastConfirmed, state.lastPantry, state.lastPreferences);
+    }
+
+    navigate(state.detected.length ? 'confirm' : 'upload');
+  },
+
+  recoverFromError() {
+    if (state.errorType === 'recipe' && state.lastConfirmed) {
+      state.errorMessage = null;
+      state.errorType = null;
+      return navigate('customize');
+    }
+
+    this.tryAnotherPhoto();
+  },
 };
 
 async function detectIngredients(base64) {
   const ui = getUI(state.locale);
+  const request = startRequest('detect');
   try {
     const res = await fetch('/api/detect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: base64.split(',')[1] || base64 }),
+      signal: request.controller.signal,
     });
+    if (!isCurrentRequest(request)) return;
     const data = await res.json();
     if (!res.ok || data.error) {
       state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.detectFailed;
+      state.errorType = 'detect';
       return navigate('error');
     }
     state.detected = data.ingredients || [];
+    state.lastRemovedIngredient = null;
+    navigate('confirm');
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error(err);
     state.errorMessage = ui.errors.network;
+    state.errorType = 'detect';
     return navigate('error');
+  } finally {
+    finishRequest(request);
   }
-  navigate('confirm');
 }
 
 async function getRecipe(ingredients, pantryStaples, preferences) {
   const ui = getUI(state.locale);
+  const request = startRequest('recipe');
   try {
     const res = await fetch('/api/recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ingredients, pantryStaples, preferences, previousTitles: state.previousTitles, locale: state.locale }),
+      signal: request.controller.signal,
     });
+    if (!isCurrentRequest(request)) return;
     const data = await res.json();
-    if (data.error) {
+    if (!res.ok || data.error) {
       state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.recipeFailed;
+      state.errorType = 'recipe';
       navigate('error');
     } else {
       state.currentRecipe = {
@@ -196,19 +289,27 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
       state.imageUrl = null;
       state.imagePhotographer = null;
       state.imagePhotographerUrl = null;
+      state.recipeCount++;
+      state.errorMessage = null;
+      state.errorType = null;
       navigate('recipe');
       if (data.searchQuery) {
-        fetchImage(data.searchQuery);
+        fetchImage(data.searchQuery, state.currentRecipe.title);
       }
     }
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error(err);
     state.errorMessage = ui.errors.generic;
+    state.errorType = 'recipe';
     navigate('error');
+  } finally {
+    finishRequest(request);
   }
 }
 
-async function fetchImage(query) {
+async function fetchImage(query, recipeTitle) {
+  const imageRequestId = ++imageRequestSequence;
   try {
     const res = await fetch('/api/image', {
       method: 'POST',
@@ -216,7 +317,7 @@ async function fetchImage(query) {
       body: JSON.stringify({ query }),
     });
     const data = await res.json();
-    if (data.url) {
+    if (imageRequestId === imageRequestSequence && state.currentRecipe?.title === recipeTitle && data.url) {
       state.imageUrl = data.url;
       state.imagePhotographer = data.photographer;
       state.imagePhotographerUrl = data.photographerUrl;
@@ -224,6 +325,34 @@ async function fetchImage(query) {
     }
   } catch (err) {
     console.error(err);
+  }
+}
+
+function startRequest(type) {
+  abortActiveRequest();
+  const request = { type, id: ++requestSequence, controller: new AbortController() };
+  activeRequest = request;
+  return request;
+}
+
+function abortActiveRequest() {
+  if (activeRequest) {
+    activeRequest.controller.abort();
+    activeRequest = null;
+  }
+}
+
+function isCurrentRequest(request) {
+  return activeRequest?.id === request.id;
+}
+
+function finishRequest(request) {
+  if (isCurrentRequest(request)) activeRequest = null;
+}
+
+function addPreviousTitle(title) {
+  if (title && !state.previousTitles.includes(title)) {
+    state.previousTitles.push(title);
   }
 }
 

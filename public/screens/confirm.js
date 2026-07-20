@@ -1,10 +1,16 @@
 export function render(state, ui) {
   const hasNonPantry = state.detected.length > 0;
+  const undoHtml = state.lastRemovedIngredient ? `
+    <div class="undo-banner" role="status">
+      <span>${escapeHtml(ui.confirm.removedNotice(state.lastRemovedIngredient.name))}</span>
+      <button class="undo-btn" id="undo-remove" type="button">${ui.confirm.undoRemove}</button>
+    </div>
+  ` : '';
 
   const detectedItems = state.detected.map((item, i) => `
       <div class="ingredient-item">
         <span class="ingredient-name">${escapeHtml(item)}</span>
-        <button class="toggle-btn active" data-index="${i}">
+        <button class="toggle-btn active" data-index="${i}" aria-label="${escapeAttribute(ui.confirm.removeIngredient(item))}">
           ✕
         </button>
       </div>
@@ -23,9 +29,11 @@ export function render(state, ui) {
         <span class="screen-title">${ui.confirm.title}</span>
       </div>
 
+      ${undoHtml}
+
       <span class="section-label">${ui.confirm.detected}</span>
       <div class="ingredient-list" id="detected-list">
-        ${detectedItems || `<p style="color: var(--text-secondary); padding: 8px 0;">${ui.confirm.noneDetected}</p>`}
+        ${detectedItems || `<p class="empty-note">${ui.confirm.noneDetected}</p>`}
       </div>
 
       <span class="section-label">${ui.confirm.pantry}</span>
@@ -47,6 +55,8 @@ export function render(state, ui) {
 
 export function mount(container, actions) {
   container.querySelector('#retake-btn').addEventListener('click', () => actions.retakePhoto());
+
+  container.querySelector('#undo-remove')?.addEventListener('click', () => actions.restoreDetected());
 
   container.querySelectorAll('#detected-list .toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => actions.toggleDetected(parseInt(btn.dataset.index)));
@@ -78,6 +88,10 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function escapeAttribute(str) {
+  return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function splitIngredients(value) {

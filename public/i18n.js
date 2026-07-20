@@ -14,6 +14,7 @@ const COPY = {
     },
     detecting: {
       message: 'Rozpoznawanie składników...',
+      cancel: 'Anuluj i wróć',
     },
     confirm: {
       retake: '← Ponów zdjęcie',
@@ -21,6 +22,9 @@ const COPY = {
       detected: 'Wykryte składniki',
       pantry: 'Składniki w spiżarni',
       noneDetected: 'Nie wykryto składników. Dodaj je poniżej.',
+      removeIngredient: ingredient => `Usuń składnik: ${ingredient}`,
+      removedNotice: ingredient => `Usunięto: ${ingredient}`,
+      undoRemove: 'Cofnij',
       addPlaceholder: 'Dodaj składnik...',
       addButton: 'Dodaj',
       nextButton: 'Dalej: dopasuj przepis',
@@ -28,12 +32,19 @@ const COPY = {
     customize: {
       back: '← Składniki',
       title: 'Dopasuj przepis',
-      intro: 'Powiedz AIChef, jaki posiłek chcesz przygotować. Wybierz sugestię lub wpisz własną.',
+      intro: 'Możesz od razu wygenerować przepis. Doprecyzuj tylko wtedy, gdy masz konkretny plan.',
+      readyTitle: 'Baza przepisu',
+      readySummary: (count, preview, extraCount) => {
+        if (!count) return 'Brak potwierdzonych składników.';
+        return `${count} ${count === 1 ? 'składnik' : 'składników'}: ${preview}${extraCount ? ` + ${extraCount} więcej` : ''}`;
+      },
+      advancedSummary: 'Chcę doprecyzować przepis',
+      advancedHint: 'Typ dania, kuchnia, czas, dieta i składniki obowiązkowe.',
       mustUse: 'Składniki obowiązkowe',
       noneSelected: 'Nie wybrano składników.',
       avoidLabel: 'Czego unikać?',
       avoidPlaceholder: 'Ostre jedzenie, pieczarki, orzeszki ziemne...',
-      generate: '🍳 Generuj przepis',
+      generate: 'Generuj przepis',
       fields: {
         dishType: {
           label: 'Rodzaj dania',
@@ -113,24 +124,29 @@ const COPY = {
     },
     generating: {
       message: 'Generowanie przepisu...',
+      cancel: 'Anuluj i popraw wybór',
     },
     recipe: {
       back: '← Składniki',
-      newPhoto: '📸 Nowe zdjęcie',
+      newPhoto: 'Nowe zdjęcie',
+      contextLabel: 'Dodatkowe informacje o przepisie',
       ingredients: 'Składniki',
       needToBuy: 'Do dokupienia',
       needToBuyNote: 'Te składniki nie są w potwierdzonych składnikach ani w spiżarni.',
       notUsed: 'Niewykorzystane',
       notUsedNote: 'Te potwierdzone składniki zostały pominięte, aby przepis był spójny.',
       instructions: 'Instrukcje',
-      tryAnotherRecipe: '🔄 Spróbuj innego przepisu',
+      tryAnotherRecipe: 'Spróbuj innego przepisu',
       counter: (current, max) => `Przepis ${current} z ${max}`,
       photoBy: 'Zdjęcie: ',
     },
     error: {
       fallback: 'Nie udało się wygenerować przepisu z tymi składnikami.',
       back: '← Do składników',
-      tryAnotherPhoto: '📸 Zrób inne zdjęcie',
+      retryPhoto: 'Spróbuj ponownie z tym zdjęciem',
+      retryRecipe: 'Ponów generowanie przepisu',
+      editPreferences: 'Popraw wybór przepisu',
+      tryAnotherPhoto: 'Zrób inne zdjęcie',
     },
     errors: {
       detectFailed: 'Nie udało się rozpoznać składników. Spróbuj wyraźniejszego zdjęcia.',
