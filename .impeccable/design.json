@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-20T00:00:00.000Z",
+  "title": "Design System: AIChef",
+  "extensions": {
+    "colorMeta": {
+      "night-bg": {
+        "role": "neutral",
+        "displayName": "Night Counter",
+        "canonical": "#0f0f1a",
+        "tonalRamp": ["#07070d", "#0f0f1a", "#1a1a2e", "#252540", "#505064", "#7a7a91", "#a0a0b8", "#ffffff"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Prep Panel",
+        "canonical": "#1a1a2e",
+        "tonalRamp": ["#090910", "#0f0f1a", "#1a1a2e", "#252540", "#404058", "#696980", "#a0a0b8", "#f2f2ff"]
+      },
+      "panel-raised": {
+        "role": "neutral",
+        "displayName": "Raised Panel",
+        "canonical": "#252540",
+        "tonalRamp": ["#0d0d17", "#161626", "#252540", "#38385a", "#555572", "#7b7b95", "#b3b3c8", "#f5f5ff"]
+      },
+      "spark": {
+        "role": "primary",
+        "displayName": "Recipe Spark",
+        "canonical": "#f59e0b",
+        "tonalRamp": ["#2b1700", "#5c3200", "#8f5100", "#c77300", "#f59e0b", "#ffbd45", "#ffd993", "#fff2d6"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Logo Display", "purpose": "Upload-screen brand mark only." },
+      "headline": { "displayName": "Recipe Headline", "purpose": "Generated recipe title." },
+      "title": { "displayName": "Screen Title", "purpose": "Compact header labels." },
+      "body": { "displayName": "Cooking Body", "purpose": "Ingredients, notes, instructions, and explanatory copy." },
+      "label": { "displayName": "Compact Label", "purpose": "Form labels and section labels." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "screen-fade", "value": "0.25s ease", "purpose": "Subtle screen entry fade and 8px lift." },
+      { "name": "state-transition", "value": "0.2s ease", "purpose": "Button, field, and chip state changes." },
+      { "name": "spinner", "value": "0.8s linear infinite", "purpose": "Ingredient detection and recipe generation progress." },
+      { "name": "skeleton-pulse", "value": "1.5s ease-in-out infinite", "purpose": "Loading placeholders for recipe image and list content." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-shell", "value": "480px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full-width amber action button for recipe generation and retry actions.",
+      "html": "<button class=\"ds-btn-primary\">Generuj przepis</button>",
+      "css": ".ds-btn-primary { width: 100%; background: #f59e0b; color: #000; padding: 16px; border: 0; border-radius: 16px; font: 700 1.1rem/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease; } .ds-btn-primary:hover { opacity: 0.92; } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Compact dark action for back, edit, and alternate photo actions.",
+      "html": "<button class=\"ds-btn-secondary\">Składniki</button>",
+      "css": ".ds-btn-secondary { background: #1a1a2e; color: #fff; padding: 10px 16px; border: 0; border-radius: 10px; font: 500 0.9rem/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; } .ds-btn-secondary:hover { background: #252540; } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Dark rounded field for custom ingredients and recipe preferences.",
+      "html": "<input class=\"ds-input\" placeholder=\"Dodaj składnik...\" />",
+      "css": ".ds-input { width: 100%; background: #1a1a2e; border: 1px solid #252540; color: #fff; padding: 13px 16px; border-radius: 10px; font: 400 1rem/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; outline: none; } .ds-input::placeholder { color: #a0a0b8; } .ds-input:focus { border-color: #f59e0b; } .ds-input:focus-visible { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.28); }"
+    },
+    {
+      "name": "Preference Chip",
+      "kind": "chip",
+      "refersTo": "chip-default",
+      "description": "Pill selector for pantry staples, must-use ingredients, and preference options.",
+      "html": "<button class=\"ds-chip ds-chip-selected\">Makaron</button>",
+      "css": ".ds-chip { background: #252540; color: #fff; border: 1px solid transparent; border-radius: 999px; padding: 8px 12px; font: 500 0.85rem/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; cursor: pointer; } .ds-chip:hover { border-color: #a0a0b8; } .ds-chip-selected { border-color: #f59e0b; color: #f59e0b; } .ds-chip:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }"
+    },
+    {
+      "name": "Camera Capture Button",
+      "kind": "custom",
+      "description": "Signature circular upload affordance for starting the recipe flow.",
+      "html": "<button class=\"ds-camera\"><span class=\"ds-camera-icon\">📷</span><span>Zrób zdjęcie</span></button>",
+      "css": ".ds-camera { width: 200px; height: 200px; border-radius: 50%; background: #1a1a2e; border: 3px dashed #f59e0b; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font: 500 1.1rem/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; } .ds-camera-icon { font-size: 3rem; } .ds-camera:hover { background: #252540; } .ds-camera:active { transform: scale(0.99); } .ds-camera:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Recipe Spark",
+    "overview": "AIChef is a compact, dark, mobile-first cooking workspace where the interface stays out of the way until the user needs a clear next action. The system reads as a practical kitchen companion rather than a generic AI surface: rounded panels, large tap targets, Polish-first copy, and an amber spark color that marks meaningful progress from photo to recipe. The visual identity should stay playful and inventive without becoming childish. Personality comes from momentum, directness, and food-specific moments, not from decorative AI gloss.",
+    "keyCharacteristics": [
+      "Mobile-first app shell capped at 480px with one-column task flow.",
+      "Dark tonal foundation with two surface layers and one amber action color.",
+      "System sans typography tuned for clarity, labels, and compact recipe reading.",
+      "Tactile and confident controls: rounded, easy to tap, and visually consistent.",
+      "Motion is short state feedback, not page choreography."
+    ],
+    "rules": [
+      { "name": "The Spark Means Action Rule", "body": "Amber is for primary actions, current selections, active borders, section cues, and loading state. Do not use it as ambient decoration.", "section": "colors" },
+      { "name": "The Two-Pan Rule", "body": "Most depth should come from #1a1a2e and #252540. Add new neutral layers only when the workflow truly needs another state.", "section": "colors" },
+      { "name": "The Utility Sans Rule", "body": "Do not introduce display fonts into labels, buttons, ingredient rows, or recipe instructions. Personality should come from interaction and copy, not typographic novelty.", "section": "typography" },
+      { "name": "The No Floating Cards Rule", "body": "Default surfaces are flat at rest. Use tonal contrast, borders, and state changes before adding shadows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the app mobile-first with a single-column 480px shell unless a specific larger-screen layout is designed.",
+      "Do use #f59e0b for meaningful action, selection, active focus, and progress only.",
+      "Do keep controls tactile and confident: large tap targets, rounded corners, and consistent padding.",
+      "Do explain AI decisions through product content: detected ingredients, missing shopping items, omitted ingredients, and retry limits.",
+      "Do add :focus-visible and reduced-motion coverage when polishing the current implementation."
+    ],
+    "donts": [
+      "Don't make the product look like generic AI SaaS: no shiny prompt-demo layout, gradient text, decorative glassmorphism, or abstract AI glow as default decoration.",
+      "Don't import recipe blog clutter: no long intros, ad-like blocks, buried actions, or content before the user can act.",
+      "Don't make the cooking interface childlike with toy colors, oversized novelty icons, or unserious affordances.",
+      "Don't turn it into a clinical utility with cold spreadsheet-like density or sterile form-only screens.",
+      "Don't add floating card shadows or extra neutral layers when the existing two-panel tonal system is enough."
+    ]
+  }
+}
