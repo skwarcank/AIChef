@@ -24,7 +24,7 @@ export function toIngredientIdentity(value) {
 
 export function splitIngredientInput(value) {
   return String(value || '')
-    .split(/\s*(?:,|;|\/|\+|\band\b|\n)\s*/i)
+    .split(/\s*(?:,|\n)\s*/)
     .map(toIngredientIdentity)
     .filter(Boolean);
 }
@@ -93,6 +93,6 @@ function canonicalIngredientName(value) {
 function singularize(word) {
   if (word.endsWith('ies') && word.length > 4) return `${word.slice(0, -3)}y`;
   if (word.endsWith('oes') && word.length > 4) return word.slice(0, -2);
-  if (word.endsWith('s') && !word.endsWith('ss') && word.length > 3) return word.slice(0, -1);
+  if (word.endsWith('s') && !word.endsWith('ss') && !word.endsWith('us') && word.length > 3) return word.slice(0, -1);
   return word;
 }

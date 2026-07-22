@@ -18,6 +18,12 @@ const openai = new OpenAI({
 });
 
 const MODEL = process.env.MODEL_NAME || 'openai/gpt-4o-mini';
+let ingredientIdentityModulePromise;
+
+function getIngredientIdentityModule() {
+  ingredientIdentityModulePromise ||= import('./public/domain/ingredient-identity.mjs');
+  return ingredientIdentityModulePromise;
+}
 
 function extractJSON(text) {
   if (!text) return '';
@@ -30,82 +36,40 @@ function extractJSON(text) {
   return text.trim();
 }
 
-function normalizeIngredientName(value) {
-  return stringifyIngredientValue(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+function normalizeRecipeIngredient(ingredient, identity) {
+  const normalized = identity.toIngredientIdentity(ingredient);
+  if (!normalized) return null;
 
-function canonicalIngredientName(value) {
-  return normalizeIngredientName(value)
-    .replace(/ies$/, 'y')
-    .replace(/s$/, '');
-}
-
-function stringifyIngredientValue(value) {
-  if (!value) return '';
-  if (typeof value !== 'object') return String(value);
-
-  const preferredValue = value.name || value.display || value.item || value.ingredient || value.text;
-  if (preferredValue && preferredValue !== value) return stringifyIngredientValue(preferredValue);
-
-  return Object.values(value)
-    .map(part => stringifyIngredientValue(part))
-    .filter(Boolean)
-    .join(' ');
-}
-
-function ingredientLooksAvailable(recipeIngredient, availableIngredients) {
-  const normalized = canonicalIngredientName(getIngredientName(recipeIngredient));
-  return availableIngredients.some(item => {
-    const available = canonicalIngredientName(getIngredientName(item));
-    return available && normalized === available;
-  });
-}
-
-function getIngredientName(ingredient) {
-  if (ingredient && typeof ingredient === 'object') {
-    return ingredient.name || ingredient.display || '';
-  }
-  return ingredient;
-}
-
-function getIngredientDisplay(ingredient) {
-  if (ingredient && typeof ingredient === 'object') {
-    return stringifyIngredientValue(ingredient.display || ingredient.name || ingredient);
-  }
-  return stringifyIngredientValue(ingredient);
-}
-
-function normalizeRecipeIngredient(ingredient) {
-  const display = getIngredientDisplay(ingredient).trim();
-  const name = normalizeIngredientName(getIngredientName(ingredient) || display);
-  const normalizedDisplay = normalizeIngredientName(display);
-  const readableDisplay = display && name && !normalizedDisplay.includes(name)
-    ? `${display} ${name}`
+  const display = identity.stringifyIngredientValue(
+    ingredient && typeof ingredient === 'object' ? ingredient.display || ingredient.name || ingredient : ingredient
+  ).trim();
+  const displayIdentity = identity.toIngredientIdentity(display);
+  const readableDisplay = display && normalized.name && displayIdentity && !displayIdentity.name.includes(normalized.name)
+    ? `${display} ${normalized.name}`
     : display;
-  return { name, display: readableDisplay || name };
+
+  return { name: normalized.name, display: readableDisplay || normalized.display };
 }
 
-function mergeUniqueIngredients(items) {
+function mergeUniqueIngredients(items, identity) {
   const seen = new Set();
-  return items.filter(item => {
-    const key = normalizeIngredientName(getIngredientName(item));
+  return items.map(item => {
+    const normalized = identity.toIngredientIdentity(item);
+    if (!normalized) return null;
+    return item && typeof item === 'object'
+      ? { ...item, name: normalized.name, display: normalized.display }
+      : normalized;
+  }).filter(item => {
+    if (!item) return false;
+    const key = item.name;
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-function normalizeAvailableIngredients(items) {
-  return (Array.isArray(items) ? items : [])
-    .map(item => ({
-      name: normalizeIngredientName(getIngredientName(item)),
-      display: String(getIngredientDisplay(item) || '').trim(),
-    }))
-    .filter(item => item.name);
+function ingredientNameSet(items, identity) {
+  return new Set(identity.dedupeIngredients(items).map(item => item.name));
 }
 
 app.post('/api/image', async (req, res) => {
@@ -179,6 +143,7 @@ app.post('/api/detect', async (req, res) => {
 app.post('/api/recipe', async (req, res) => {
   try {
     const { ingredients, pantryStaples, previousTitles, locale = 'en' } = req.body;
+    const ingredientIdentity = await getIngredientIdentityModule();
     const preferences = req.body.preferences || {};
     const wantsPolish = locale === 'pl';
     const responseLanguageInstruction = wantsPolish
@@ -229,43 +194,42 @@ app.post('/api/recipe', async (req, res) => {
     }
 
     if (!recipe.error) {
-      recipe.title = stringifyIngredientValue(recipe.title).trim() || generatedRecipeTitleFallback;
+      recipe.title = ingredientIdentity.stringifyIngredientValue(recipe.title).trim() || generatedRecipeTitleFallback;
       recipe.ingredients = Array.isArray(recipe.ingredients)
-        ? recipe.ingredients.map(normalizeRecipeIngredient).filter(item => item.name)
+        ? recipe.ingredients.map(item => normalizeRecipeIngredient(item, ingredientIdentity)).filter(Boolean)
         : [];
-      const pantryNames = new Set((pantryStaples || []).map(canonicalIngredientName));
-      const usedIngredientNames = new Set(recipe.ingredients.map(item => canonicalIngredientName(item.name)));
-      const suppliedMainIngredients = normalizeAvailableIngredients(ingredients || []);
+      const pantryNames = ingredientNameSet(pantryStaples || [], ingredientIdentity);
+      const usedIngredientNames = ingredientNameSet(recipe.ingredients, ingredientIdentity);
+      const suppliedMainIngredients = ingredientIdentity.dedupeIngredients(ingredients || []);
       const modelOmissions = Array.isArray(recipe.omittedIngredients)
         ? recipe.omittedIngredients
           .map(item => ({
-            ...normalizeRecipeIngredient(item),
-            reason: stringifyIngredientValue(item.reason).trim(),
+            ...normalizeRecipeIngredient(item, ingredientIdentity),
+            reason: ingredientIdentity.stringifyIngredientValue(item.reason).trim(),
           }))
-          .filter(item => item.name && item.name !== 'none' && !pantryNames.has(canonicalIngredientName(item.name)))
+          .filter(item => item.name && item.name !== 'none' && !pantryNames.has(item.name))
         : [];
-      const omittedNames = new Set(modelOmissions.map(item => canonicalIngredientName(item.name)));
+      const omittedNames = ingredientNameSet(modelOmissions, ingredientIdentity);
       const derivedOmissions = suppliedMainIngredients
         .filter(item => {
-          const name = canonicalIngredientName(item.name);
+          const name = item.name;
           return name && !usedIngredientNames.has(name) && !omittedNames.has(name);
         })
         .map(item => ({
           ...item,
           reason: derivedOmissionReason,
         }));
-      recipe.omittedIngredients = mergeUniqueIngredients([...modelOmissions, ...derivedOmissions]);
+      recipe.omittedIngredients = mergeUniqueIngredients([...modelOmissions, ...derivedOmissions], ingredientIdentity);
 
-      const availableIngredients = mergeUniqueIngredients(normalizeAvailableIngredients([
-        ...(recipe.availableIngredients || []),
+      const availableIngredients = mergeUniqueIngredients([
         ...(ingredients || []),
         ...(pantryStaples || []),
-      ]));
+      ], ingredientIdentity);
       const derivedShoppingList = Array.isArray(recipe.ingredients)
-        ? recipe.ingredients.filter(item => !ingredientLooksAvailable(item, availableIngredients))
+        ? recipe.ingredients.filter(item => !ingredientIdentity.ingredientIsAvailable(item, availableIngredients))
         : [];
-      recipe.shoppingList = mergeUniqueIngredients(derivedShoppingList).map(item => getIngredientDisplay(item));
-      recipe.searchQuery = stringifyIngredientValue(recipe.searchQuery).trim() || recipe.title;
+      recipe.shoppingList = mergeUniqueIngredients(derivedShoppingList, ingredientIdentity).map(ingredientIdentity.displayIngredient);
+      recipe.searchQuery = ingredientIdentity.stringifyIngredientValue(recipe.searchQuery).trim() || recipe.title;
     }
 
     res.json(recipe);

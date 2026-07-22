@@ -23,6 +23,9 @@ test('splits comma and newline user input into ingredient identities', () => {
     { name: 'onion', display: 'onion' },
     { name: 'garlic', display: 'garlic' },
   ]);
+  assert.deepEqual(splitIngredientInput('half-and-half'), [
+    { name: 'half and half', display: 'half-and-half' },
+  ]);
 });
 
 test('deduplicates by canonical identity while preserving first display label', () => {
@@ -45,4 +48,6 @@ test('matches preparation and amount phrases without collapsing distinct ingredi
   assert.equal(ingredientIsAvailable('2 tbsp rice vinegar', ['rice vinegar']), true);
   assert.equal(ingredientIsAvailable('2 tbsp rice vinegar', ['rice']), false);
   assert.equal(ingredientIsAvailable('1 cup cooked rice', ['rice vinegar']), false);
+  assert.equal(ingredientIsAvailable('asparagus', ['asparagus']), true);
+  assert.equal(ingredientIsAvailable('hummus', ['hummus']), true);
 });
