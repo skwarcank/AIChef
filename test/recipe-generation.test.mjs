@@ -136,3 +136,136 @@ test('translates model-declared Recipe Generation failures into module errors', 
     },
   );
 });
+
+test('rejects Recipe Results that include avoided ingredients', async () => {
+  const generateRecipe = createRecipeGenerator({
+    modelAdapter: async () => ({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            title: 'Tomato Salad',
+            ingredients: [
+              { name: 'tomato', display: '2 tomatoes' },
+              { name: 'peanut', display: '2 tbsp peanuts' },
+            ],
+            instructions: ['Toss everything together.'],
+            searchQuery: 'tomato salad',
+          }),
+        },
+      }],
+    }),
+  });
+
+  await assert.rejects(
+    generateRecipe({
+      confirmedIngredients: ['Tomatoes'],
+      pantryStaples: [],
+      preferences: { avoidIngredients: 'peanuts' },
+    }),
+    error => {
+      assert.equal(error.name, 'RecipeGenerationError');
+      assert.equal(error.status, 502);
+      assert.equal(error.userMessage, 'Could not generate a recipe. Try different ingredients.');
+      return true;
+    },
+  );
+});
+
+test('rejects avoided ingredients through Polish recipe display text', async () => {
+  const generateRecipe = createRecipeGenerator({
+    modelAdapter: async () => ({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            title: 'Smazona cukinia',
+            ingredients: [{ name: 'zucchini', display: '1 cukinia' }],
+            instructions: ['Podsmaz cukinie.'],
+            searchQuery: 'zucchini skillet',
+          }),
+        },
+      }],
+    }),
+  });
+
+  await assert.rejects(
+    generateRecipe({
+      confirmedIngredients: ['Cukinia'],
+      pantryStaples: [],
+      preferences: { avoidIngredients: 'cukinia' },
+      locale: 'pl',
+    }),
+    error => {
+      assert.equal(error.name, 'RecipeGenerationError');
+      assert.equal(error.status, 502);
+      assert.equal(error.userMessage, 'Nie udało się wygenerować przepisu. Spróbuj innych składników.');
+      return true;
+    },
+  );
+});
+
+test('rejects Recipe Results that omit must-use ingredients', async () => {
+  const generateRecipe = createRecipeGenerator({
+    modelAdapter: async () => ({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            title: 'Tomato Skillet',
+            ingredients: [{ name: 'tomato', display: '2 tomatoes' }],
+            omittedIngredients: [
+              { name: 'zucchini', display: 'cukinia', reason: 'Nie pasuje do dania.' },
+            ],
+            instructions: ['Podsmaz pomidory.'],
+            searchQuery: 'tomato skillet',
+          }),
+        },
+      }],
+    }),
+  });
+
+  await assert.rejects(
+    generateRecipe({
+      confirmedIngredients: ['Pomidory', 'Cukinia'],
+      pantryStaples: [],
+      preferences: { mustUseIngredients: ['Cukinia'] },
+      locale: 'pl',
+    }),
+    error => {
+      assert.equal(error.name, 'RecipeGenerationError');
+      assert.equal(error.status, 502);
+      assert.equal(error.userMessage, 'Nie udało się wygenerować przepisu. Spróbuj innych składników.');
+      return true;
+    },
+  );
+});
+
+test('accepts must-use ingredients through Polish recipe display text', async () => {
+  const generateRecipe = createRecipeGenerator({
+    modelAdapter: async () => ({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            title: 'Smazona cukinia z pomidorami',
+            ingredients: [
+              { name: 'tomato', display: '2 pomidory' },
+              { name: 'zucchini', display: '1 cukinia' },
+            ],
+            instructions: ['Podsmaz warzywa.'],
+            searchQuery: 'tomato zucchini skillet',
+          }),
+        },
+      }],
+    }),
+  });
+
+  const result = await generateRecipe({
+    confirmedIngredients: ['Pomidory', 'Cukinia'],
+    pantryStaples: [],
+    preferences: { mustUseIngredients: ['Cukinia'] },
+    locale: 'pl',
+  });
+
+  assert.deepEqual(result.ingredients, [
+    { name: 'tomato', display: '2 pomidory' },
+    { name: 'zucchini', display: '1 cukinia' },
+  ]);
+});

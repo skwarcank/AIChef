@@ -1,4 +1,8 @@
-import { stringifyIngredientValue } from './ingredient-identity.mjs';
+import {
+  ingredientIsAvailable,
+  splitIngredientInput,
+  stringifyIngredientValue,
+} from './ingredient-identity.mjs';
 import { deriveRecipeAvailability } from './recipe-availability.mjs';
 
 const RECIPE_SYSTEM_PROMPT = 'You are a creative home cook. Given a set of ingredients, create a tasty, coherent recipe. Be creative with cuisines and preparations - do not always default to the most obvious dish. Treat the provided main ingredients and pantry staples as ingredients the user already has, not as a mandatory checklist. Use as many main ingredients as naturally fit the dish. Omit outlier ingredients that would create an unusual, forced, sweet/savory, dessert/savory, or low-quality pairing unless the pairing is common and recognizable. Must-use ingredients from preferences are mandatory; otherwise, ingredient quality is more important than using every item. You may add at most 2 non-pantry supporting ingredients only when important for recipe quality; do not add unavailable proteins, starches, or major components. Never include avoided ingredients. Return valid JSON: {"title": "Recipe Name", "availableIngredients": [{"name": "normalized ingredient", "display": "original/corrected ingredient"}], "ingredients": [{"name": "normalized ingredient", "display": "amount + ingredient name"}], "omittedIngredients": [{"name": "normalized ingredient", "display": "original ingredient", "reason": "brief culinary reason"}], "instructions": ["Step 1", ...], "searchQuery": "short descriptive name of the dish for image search"}. Normalize ingredient names to singular, generic grocery names with no quantities, preparation words, brands, or adjectives unless they identify a different ingredient, for example "2 chopped tomatoes" -> "tomato", "eggs" -> "egg", "tomatto" -> "tomato", but "rice vinegar" stays "rice vinegar". availableIngredients must contain every provided main ingredient and pantry staple, normalized using the same naming convention. ingredients must contain the full recipe ingredient list, including ingredients the user must buy. Every ingredients[].display value must include a practical quantity or amount phrase plus the ingredient name, for example "2 chicken breasts", "1 cup rice", "2 cloves garlic", "salt, to taste", or "1 tablespoon olive oil". omittedIngredients must list every provided main ingredient that is not used, with honest reasons. The title and searchQuery must not mention omitted ingredients. Do not return shoppingList; the app will derive it. Only return an error if no safe food recipe can be made at all.';
@@ -66,6 +70,7 @@ async function generateRecipe({
     recipe,
     confirmedIngredients,
     pantryStaples,
+    preferences,
     wantsPolish,
   });
 }
@@ -119,7 +124,7 @@ function recipeGenerationFailureMessage(wantsPolish) {
     : 'Could not generate a recipe. Try different ingredients.';
 }
 
-function normalizeRecipeResult({ recipe, confirmedIngredients, pantryStaples, wantsPolish }) {
+function normalizeRecipeResult({ recipe, confirmedIngredients, pantryStaples, preferences, wantsPolish }) {
   const titleFallback = wantsPolish ? 'Wygenerowany przepis' : 'Generated Recipe';
   const derivedOmissionReason = wantsPolish
     ? 'Pominięto, aby przepis był spójny.'
@@ -133,7 +138,7 @@ function normalizeRecipeResult({ recipe, confirmedIngredients, pantryStaples, wa
     derivedOmissionReason,
   });
 
-  return {
+  const result = {
     ...recipe,
     title,
     availableIngredients: availability.availableIngredients,
@@ -142,6 +147,65 @@ function normalizeRecipeResult({ recipe, confirmedIngredients, pantryStaples, wa
     shoppingList: availability.shoppingList,
     searchQuery: stringifyIngredientValue(recipe.searchQuery).trim() || title,
   };
+
+  assertRecipePolicyResult(result, preferences, wantsPolish, recipe.availableIngredients);
+
+  return result;
+}
+
+function assertRecipePolicyResult(recipe, preferences = {}, wantsPolish, modelDeclaredAvailableIngredients = []) {
+  const avoidedIngredients = splitIngredientInput(preferences.avoidIngredients);
+  const mustUseIngredients = Array.isArray(preferences.mustUseIngredients)
+    ? preferences.mustUseIngredients
+    : [];
+
+  if (avoidedIngredients.some(avoidedIngredient => recipeIngredientMatchesPreference(avoidedIngredient, recipe.ingredients))) {
+    throw modelViolatedRecipePolicyError(wantsPolish);
+  }
+
+  if (mustUseIngredients.some(mustUseIngredient => !mustUseIngredientIsInRecipe(
+    mustUseIngredient,
+    recipe.ingredients,
+    modelDeclaredAvailableIngredients,
+  ))) {
+    throw modelViolatedRecipePolicyError(wantsPolish);
+  }
+}
+
+function mustUseIngredientIsInRecipe(mustUseIngredient, recipeIngredients, modelDeclaredAvailableIngredients) {
+  if (recipeIngredientMatchesPreference(mustUseIngredient, recipeIngredients)) return true;
+
+  return matchingModelAvailableIngredients(mustUseIngredient, modelDeclaredAvailableIngredients)
+    .some(availableIngredient => ingredientIsAvailable(availableIngredient, recipeIngredients));
+}
+
+function recipeIngredientMatchesPreference(preferenceIngredient, recipeIngredients) {
+  return ingredientIsAvailable(preferenceIngredient, recipeIngredients)
+    || ingredientIsAvailable(preferenceIngredient, recipeIngredientDisplayLabels(recipeIngredients));
+}
+
+function matchingModelAvailableIngredients(ingredient, modelDeclaredAvailableIngredients) {
+  const availableIngredients = Array.isArray(modelDeclaredAvailableIngredients) ? modelDeclaredAvailableIngredients : [];
+  const displayIngredients = availableIngredients
+    .map(availableIngredient => stringifyIngredientValue(availableIngredient?.display).trim());
+
+  return availableIngredients.filter((availableIngredient, index) => (
+    ingredientIsAvailable(ingredient, [availableIngredient])
+    || ingredientIsAvailable(ingredient, [displayIngredients[index]])
+  ));
+}
+
+function recipeIngredientDisplayLabels(recipeIngredients) {
+  return (Array.isArray(recipeIngredients) ? recipeIngredients : [])
+    .map(recipeIngredient => stringifyIngredientValue(recipeIngredient?.display).trim())
+    .filter(Boolean);
+}
+
+function modelViolatedRecipePolicyError(wantsPolish) {
+  return new RecipeGenerationError('Recipe Result violated Recipe Generation policy.', {
+    status: 502,
+    userMessage: recipeGenerationFailureMessage(wantsPolish),
+  });
 }
 
 function parseModelJSON(text) {
