@@ -1,13 +1,15 @@
+import { displayIngredient } from '../domain/ingredient-identity.mjs';
+
 const MAX_RECIPES = 10;
 
 export function render(state, ui) {
   const r = state.currentRecipe;
   if (!r) return '';
 
-  const ingredients = r.ingredients.map(i => `<li>${escapeHtml(getIngredientDisplay(i))}</li>`).join('');
-  const shoppingList = (r.shoppingList || []).map(i => `<li>${escapeHtml(getIngredientDisplay(i))}</li>`).join('');
+  const ingredients = r.ingredients.map(i => `<li>${escapeHtml(displayIngredient(i))}</li>`).join('');
+  const shoppingList = (r.shoppingList || []).map(i => `<li>${escapeHtml(displayIngredient(i))}</li>`).join('');
   const omittedIngredients = (r.omittedIngredients || [])
-    .map(i => `<li>${escapeHtml(getIngredientDisplay(i))}${i.reason ? ` <span class="recipe-note">(${escapeHtml(i.reason)})</span>` : ''}</li>`)
+    .map(i => `<li>${escapeHtml(displayIngredient(i))}${i.reason ? ` <span class="recipe-note">(${escapeHtml(i.reason)})</span>` : ''}</li>`)
     .join('');
   const instructions = r.instructions.map(s => `<li>${escapeHtml(s)}</li>`).join('');
   const atLimit = state.recipeCount >= MAX_RECIPES;
@@ -95,24 +97,4 @@ function escapeHtml(str) {
 
 function escapeAttribute(str) {
   return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function getIngredientDisplay(ingredient) {
-  if (ingredient && typeof ingredient === 'object') {
-    return stringifyIngredientValue(ingredient.display || ingredient.name || ingredient);
-  }
-  return stringifyIngredientValue(ingredient);
-}
-
-function stringifyIngredientValue(value) {
-  if (!value) return '';
-  if (typeof value !== 'object') return String(value);
-
-  const preferredValue = value.name || value.display || value.item || value.ingredient || value.text;
-  if (preferredValue && preferredValue !== value) return stringifyIngredientValue(preferredValue);
-
-  return Object.values(value)
-    .map(part => stringifyIngredientValue(part))
-    .filter(Boolean)
-    .join(' ');
 }

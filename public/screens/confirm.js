@@ -1,3 +1,5 @@
+import { displayIngredient, splitIngredientInput } from '../domain/ingredient-identity.mjs';
+
 export function render(state, ui) {
   const hasNonPantry = state.detected.length > 0;
   const undoHtml = state.lastRemovedIngredient ? `
@@ -9,8 +11,8 @@ export function render(state, ui) {
 
   const detectedItems = state.detected.map((item, i) => `
       <div class="ingredient-item">
-        <span class="ingredient-name">${escapeHtml(item)}</span>
-        <button class="toggle-btn active" data-index="${i}" aria-label="${escapeAttribute(ui.confirm.removeIngredient(item))}">
+        <span class="ingredient-name">${escapeHtml(displayIngredient(item))}</span>
+        <button class="toggle-btn active" data-index="${i}" aria-label="${escapeAttribute(ui.confirm.removeIngredient(displayIngredient(item)))}">
           ✕
         </button>
       </div>
@@ -70,7 +72,7 @@ export function mount(container, actions) {
   const addBtn = container.querySelector('#add-btn');
 
   function addIngredient() {
-    splitIngredients(addInput.value).forEach(name => actions.addCustomIngredient(name));
+    splitIngredientInput(addInput.value).forEach(ingredient => actions.addCustomIngredient(ingredient));
   }
 
   addBtn.addEventListener('click', addIngredient);
@@ -92,11 +94,4 @@ function escapeHtml(str) {
 
 function escapeAttribute(str) {
   return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function splitIngredients(value) {
-  return value
-    .split(/\s*(?:,|;|\/|\+|\band\b|\n)\s*/i)
-    .map(item => item.trim())
-    .filter(Boolean);
 }

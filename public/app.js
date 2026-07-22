@@ -6,6 +6,7 @@ import { render as generatingRender, mount as generatingMount } from './screens/
 import { render as recipeRender, mount as recipeMount } from './screens/recipe.js';
 import { render as errorRender, mount as errorMount } from './screens/error.js';
 import { getUI } from './i18n.js';
+import { dedupeIngredients, displayIngredient } from './domain/ingredient-identity.mjs';
 
 const PANTRY_STAPLES = ['Salt', 'Pepper', 'Olive Oil', 'Water'];
 const MAX_RECIPES = 10;
@@ -105,17 +106,16 @@ const actions = {
   },
 
   addCustomIngredient(name) {
-    const normalizedName = name.trim();
-    const alreadyAdded = state.detected.some(item => item.toLowerCase() === normalizedName.toLowerCase());
-    if (normalizedName && !alreadyAdded) {
-      state.detected.push(normalizedName);
+    const ingredients = dedupeIngredients([...state.detected, name]).map(displayIngredient);
+    if (ingredients.length > state.detected.length) {
+      state.detected = ingredients;
       state.lastRemovedIngredient = null;
     }
     navigate('confirm');
   },
 
   openCustomize() {
-    state.confirmed = [...state.detected];
+    state.confirmed = dedupeIngredients(state.detected).map(displayIngredient);
     state.lastConfirmed = [...state.confirmed];
     state.lastPantry = state.pantry.filter(p => p.checked).map(p => p.name);
     state.lastRemovedIngredient = null;
