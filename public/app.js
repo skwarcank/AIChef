@@ -15,7 +15,7 @@ let activeRequest = null;
 let requestSequence = 0;
 let imageRequestSequence = 0;
 
-const state = {
+export const state = {
   locale: 'pl',
   photo: null,
   detected: [],
@@ -65,7 +65,7 @@ function navigate(screenName) {
   screen.mount(app, actions);
 }
 
-const actions = {
+export const actions = {
   onPhoto(base64) {
     abortActiveRequest();
     state.photo = base64;
