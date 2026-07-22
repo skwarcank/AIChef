@@ -1,17 +1,20 @@
+import { toIngredientIdentity } from '../domain/ingredient-identity.mjs';
+
 const FIELD_ORDER = ['dishType', 'cuisine', 'dietaryPreference', 'timeLimit', 'servings', 'skillLevel'];
 
 export function render(state, ui) {
   const prefs = state.preferences || {};
   const fields = FIELD_ORDER.map(key => renderField(key, ui.customize.fields[key], prefs[key])).join('');
-  const confirmed = state.confirmed || [];
+  const confirmedIngredients = (state.confirmed || []).map(toIngredientIdentity).filter(Boolean);
+  const confirmed = confirmedIngredients.map(item => item.display);
   const ingredientPreview = confirmed.slice(0, 3).map(escapeHtml).join(', ');
   const extraIngredientCount = Math.max(confirmed.length - 3, 0);
   const advancedOpen = hasPreferences(prefs) ? 'open' : '';
-  const mustUse = (state.confirmed || []).map(item => {
-    const selected = (prefs.mustUseIngredients || []).includes(item);
+  const mustUse = confirmedIngredients.map(item => {
+    const selected = (prefs.mustUseIngredients || []).includes(item.display);
     return `
-      <button class="preference-chip ${selected ? 'checked' : ''}" data-ingredient="${escapeAttribute(item)}" type="button">
-        ${escapeHtml(item)}
+      <button class="preference-chip ${selected ? 'checked' : ''}" data-ingredient="${escapeAttribute(item.display)}" type="button">
+        ${escapeHtml(item.display)}
       </button>
     `;
   }).join('');
