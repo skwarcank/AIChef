@@ -7,6 +7,7 @@ import { render as recipeRender, mount as recipeMount } from './screens/recipe.j
 import { render as errorRender, mount as errorMount } from './screens/error.js';
 import { getUI } from './i18n.js';
 import { dedupeIngredients, displayIngredient } from './domain/ingredient-identity.mjs';
+import { detectIngredientsFromPhoto, fetchRecipeImage, generateRecipe } from './wire-adapter.mjs';
 
 const PANTRY_STAPLES = ['Salt', 'Pepper', 'Olive Oil', 'Water'];
 const MAX_RECIPES = 10;
@@ -234,26 +235,15 @@ async function detectIngredients(base64) {
   const ui = getUI(state.locale);
   const request = startRequest('detect');
   try {
-    const res = await fetch('/api/detect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64.split(',')[1] || base64 }),
-      signal: request.controller.signal,
-    });
+    const ingredients = await detectIngredientsFromPhoto(base64, { signal: request.controller.signal });
     if (!isCurrentRequest(request)) return;
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.detectFailed;
-      state.errorType = 'detect';
-      return navigate('error');
-    }
-    state.detected = data.ingredients || [];
+    state.detected = ingredients;
     state.lastRemovedIngredient = null;
     navigate('confirm');
   } catch (err) {
     if (err.name === 'AbortError') return;
     console.error(err);
-    state.errorMessage = ui.errors.network;
+    state.errorMessage = errorMessageForCode(err.code, ui, ui.errors.detectFailed);
     state.errorType = 'detect';
     return navigate('error');
   } finally {
@@ -265,42 +255,30 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
   const ui = getUI(state.locale);
   const request = startRequest('recipe');
   try {
-    const res = await fetch('/api/recipe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ingredients, pantryStaples, preferences, previousTitles: state.previousTitles, locale: state.locale }),
+    const recipe = await generateRecipe({
+      ingredients,
+      pantryStaples,
+      preferences,
+      previousTitles: state.previousTitles,
+      locale: state.locale,
       signal: request.controller.signal,
     });
     if (!isCurrentRequest(request)) return;
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      state.errorMessage = localizeErrorMessage(data.message, ui) ?? ui.errors.recipeFailed;
-      state.errorType = 'recipe';
-      navigate('error');
-    } else {
-      state.currentRecipe = {
-        title: data.title,
-        ingredients: data.ingredients || [],
-        omittedIngredients: data.omittedIngredients || [],
-        shoppingList: data.shoppingList || data.missingIngredients || data.neededIngredients || data.toBuy || [],
-        instructions: data.instructions || [],
-        searchQuery: data.searchQuery,
-      };
-      state.imageUrl = null;
-      state.imagePhotographer = null;
-      state.imagePhotographerUrl = null;
-      state.recipeCount++;
-      state.errorMessage = null;
-      state.errorType = null;
-      navigate('recipe');
-      if (data.searchQuery) {
-        fetchImage(data.searchQuery, state.currentRecipe.title);
-      }
+    state.currentRecipe = recipe;
+    state.imageUrl = null;
+    state.imagePhotographer = null;
+    state.imagePhotographerUrl = null;
+    state.recipeCount++;
+    state.errorMessage = null;
+    state.errorType = null;
+    navigate('recipe');
+    if (recipe.searchQuery) {
+      fetchImage(recipe.searchQuery, state.currentRecipe.title);
     }
   } catch (err) {
     if (err.name === 'AbortError') return;
     console.error(err);
-    state.errorMessage = ui.errors.generic;
+    state.errorMessage = errorMessageForCode(err.code, ui, ui.errors.recipeFailed);
     state.errorType = 'recipe';
     navigate('error');
   } finally {
@@ -311,16 +289,11 @@ async function getRecipe(ingredients, pantryStaples, preferences) {
 async function fetchImage(query, recipeTitle) {
   const imageRequestId = ++imageRequestSequence;
   try {
-    const res = await fetch('/api/image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
-    const data = await res.json();
-    if (imageRequestId === imageRequestSequence && state.currentRecipe?.title === recipeTitle && data.url) {
-      state.imageUrl = data.url;
-      state.imagePhotographer = data.photographer;
-      state.imagePhotographerUrl = data.photographerUrl;
+    const image = await fetchRecipeImage(query);
+    if (imageRequestId === imageRequestSequence && state.currentRecipe?.title === recipeTitle && image.url) {
+      state.imageUrl = image.url;
+      state.imagePhotographer = image.photographer;
+      state.imagePhotographerUrl = image.photographerUrl;
       navigate('recipe');
     }
   } catch (err) {
@@ -356,18 +329,14 @@ function addPreviousTitle(title) {
   }
 }
 
-function localizeErrorMessage(message, ui) {
-  const normalized = String(message || '').trim();
+function errorMessageForCode(code, ui, fallback) {
   const map = {
-    'Failed to detect ingredients. Try a clearer photo.': ui.errors.detectFailed,
-    'Network error. Check your connection and try again.': ui.errors.network,
-    'Something went wrong. Try again.': ui.errors.generic,
-    'Could not generate a recipe. Try different ingredients.': ui.errors.recipeFailed,
-    'Failed to generate recipe.': ui.errors.recipeFailed,
-    'Failed to analyze image.': ui.errors.imageFailed,
-    'Could not generate a recipe with those ingredients.': ui.error.fallback,
+    detect_failed: ui.errors.detectFailed,
+    network: ui.errors.network,
+    recipe_failed: ui.errors.recipeFailed,
+    image_failed: ui.errors.imageFailed,
   };
-  return map[normalized] || null;
+  return map[code] || fallback;
 }
 
 navigate('upload');
